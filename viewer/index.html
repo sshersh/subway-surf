@@ -105,8 +105,10 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
 .tag.blocked{background:var(--bad);color:var(--bad-bg)} .tag.possible{background:var(--warn);color:var(--warn-bg)} .tag.delay{background:var(--muted);color:var(--surface)}
 @media (max-width:820px){
   .app{grid-template-columns:1fr;height:auto}
-  .mapwrap{height:62vh;min-height:360px;border-right:0;border-bottom:1px solid var(--rule)}
-  .panel{overflow:visible}
+  .mapwrap{height:58vh;min-height:340px;border-right:0;order:1}
+  .panel{display:contents}
+  .panel > .sec{order:3;background:var(--surface)}
+  .panel > #playerSec{order:2;border-top:1px solid var(--rule)}
   .legendhint{font-size:.7rem}
 }
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
@@ -147,20 +149,7 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
       <div class="bar"><i id="pbar"></i></div>
     </section>
 
-    <section class="sec" id="solbox" hidden>
-      <div class="label">Solver result</div>
-      <div class="split" id="split"></div>
-      <div class="keyrow" id="splitkey"></div>
-      <dl class="facts" id="facts"></dl>
-    </section>
-
-    <section class="sec">
-      <div class="label">Stations covered over time</div>
-      <svg class="prog" id="prog" viewBox="0 0 320 140" role="img" aria-label="Stations covered versus elapsed time"></svg>
-      <p class="note">Flat stretches are waits, walks and backtracking through stations you already have.</p>
-    </section>
-
-    <section class="sec">
+    <section class="sec" id="playerSec">
       <div class="player">
         <button class="btn primary" id="play">Play</button>
         <select id="speed" aria-label="Playback speed">
@@ -174,6 +163,18 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
       <label class="check"><input type="checkbox" id="miss"> Highlight stations this route never reaches</label>
     </section>
 
+    <section class="sec">
+      <div class="label">Stations covered over time</div>
+      <svg class="prog" id="prog" viewBox="0 0 320 140" role="img" aria-label="Stations covered versus elapsed time"></svg>
+      <p class="note">Flat stretches are waits, walks and backtracking through stations you already have.</p>
+    </section>
+
+    <section class="sec" id="solbox" hidden>
+      <div class="label">Solver result</div>
+      <div class="split" id="split"></div>
+      <div class="keyrow" id="splitkey"></div>
+      <dl class="facts" id="facts"></dl>
+    </section>
 
     <section class="sec" id="itbox" hidden>
       <div class="label" id="itlabel">Itinerary</div>
