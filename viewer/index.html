@@ -155,6 +155,12 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
     </section>
 
     <section class="sec">
+      <div class="label">Stations covered over time</div>
+      <svg class="prog" id="prog" viewBox="0 0 320 140" role="img" aria-label="Stations covered versus elapsed time"></svg>
+      <p class="note">Flat stretches are waits, walks and backtracking through stations you already have.</p>
+    </section>
+
+    <section class="sec">
       <div class="player">
         <button class="btn primary" id="play">Play</button>
         <select id="speed" aria-label="Playback speed">
@@ -168,11 +174,6 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
       <label class="check"><input type="checkbox" id="miss"> Highlight stations this route never reaches</label>
     </section>
 
-    <section class="sec">
-      <div class="label">Stations covered over time</div>
-      <svg class="prog" id="prog" viewBox="0 0 320 140" role="img" aria-label="Stations covered versus elapsed time"></svg>
-      <p class="note">Flat stretches are waits, walks and backtracking through stations you already have.</p>
-    </section>
 
     <section class="sec" id="itbox" hidden>
       <div class="label" id="itlabel">Itinerary</div>
