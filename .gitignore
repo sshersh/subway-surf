@@ -5,3 +5,5 @@ model*.npy
 run_*.npy
 *.log
 __pycache__/
+_site/
+viewer/status.json

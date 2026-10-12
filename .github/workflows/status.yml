@@ -1,0 +1,47 @@
+name: Service status and site
+
+# Every 15 minutes: pull MTA subway alerts, check them against the planned route,
+# and redeploy the GitHub Pages site with a fresh status.json for the banner.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check MTA alerts against the route
+        run: |
+          mkdir -p _site/viewer
+          python3 status/check_status.py --out _site/status.json || \
+            python3 -c "import json,time; json.dump({'checked_at':int(time.time()),'verdict':'unknown','now':[],'next_run':{'issues':[]}},open('_site/status.json','w'))"
+          cp _site/status.json _site/viewer/status.json
+      - name: Assemble site
+        run: |
+          cp viewer/index.html _site/index.html
+          cp viewer/index.html _site/viewer/index.html
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

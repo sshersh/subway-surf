@@ -53,6 +53,17 @@ To replay the saved best route, run `python3 export.py ../results/best_solution.
 
 The MTA's own feed is at <https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip> (CSV). The scripts expect the JSON export, but each file has the same columns.
 
+## Live service status
+
+`.github/workflows/status.yml` runs every 15 minutes (GitHub may delay scheduled runs). It downloads the MTA subway alerts feed, then runs `status/check_status.py` to compare each alert with every stop the route needs on each line. It then redeploys GitHub Pages with a fresh `status.json`, and the page shows a banner at the top:
+
+- **Blocks route** (red): an active suspension, skipped stops or express run hits a station the plan needs on that line.
+- **May affect** (amber): a disruption on a line the plan uses, where the alert names no stations.
+- **Delays**: delays on a line the plan uses. The route's timing assumes trains run on time.
+- **Planned work during the next run**: planned alerts that overlap a leg's clock time if the run started at its scheduled time on the next weekday.
+
+The banner is only shown where a `status.json` sits next to the page, so it's on GitHub Pages but not in a local copy. For this to work, set **Settings → Pages → Source** to **GitHub Actions**.
+
 ## Results format
 
 `results/best_route.json`:
