@@ -213,7 +213,7 @@ const lines = {}; for (const [r, ls] of Object.entries(D.lines)) lines[r] = ls.m
 /* ---------- canvas & view ---------- */
 const cv = $('map'), ctx = cv.getContext('2d');
 let W=0, H=0, dpr=1, view = {k:1, tx:0, ty:0};
-function resize(){ const r = cv.getBoundingClientRect(); dpr = window.devicePixelRatio||1; W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; draw(); }
+function resize(){ const r = cv.getBoundingClientRect(); dpr = Math.min(2, window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; draw(); }
 function fit(b = bounds, pad = 28){
   const bw=b[2]-b[0], bh=b[3]-b[1];
   view.k = Math.min((W-pad*2)/bw, (H-pad*2)/bh);
@@ -243,10 +243,11 @@ cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', e
 
 /* ---------- theme tokens for canvas ---------- */
 let T = {};
-function readTokens(){ const cs = getComputedStyle(document.documentElement); for (const k of ['bg','ink','muted','rule','station','station-ring','idle','missed','walk','accent','surface']) T[k] = cs.getPropertyValue('--'+k).trim(); }
+let LABEL_FONT = '500 11px sans-serif';
+function readTokens(){ const cs = getComputedStyle(document.documentElement); for (const k of ['bg','ink','muted','rule','station','station-ring','idle','missed','walk','accent','surface']) T[k] = cs.getPropertyValue('--'+k).trim(); LABEL_FONT = `500 11px ${cs.getPropertyValue('--f-body')}`; }
 readTokens();
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readTokens(); draw(); });
-new MutationObserver(() => { readTokens(); draw(); }).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readTokens(); baseKey=''; draw(); });
+new MutationObserver(() => { readTokens(); baseKey=''; draw(); }).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
 
 /* ---------- route model ---------- */
 let R = null; // {name, rows:[{st, t, route}], segs:[{a,b,t0,t1,route,path,len,cum}], first:Map, t0, t1, curve}
@@ -397,56 +398,67 @@ function posAt(s, t){
   return {p:[A[0]+(B[0]-A[0])*u, A[1]+(B[1]-A[1])*u], j, f};
 }
 
-/* ---------- drawing ---------- */
-function draw(){
+/* ---------- drawing ----------
+   Layers: `base` (network + faint planned route) is redrawn only when the view, size or theme changes;
+   `done` (base + legs already completed) only when another leg finishes. Each frame then blits `done`
+   and draws the current partial leg, stations and the moving dot. Draws are coalesced to one per frame. */
+const base = document.createElement('canvas'), bctx = base.getContext('2d');
+const done = document.createElement('canvas'), dctx = done.getContext('2d');
+let baseKey = '', doneKey = '', rafPending = false;
+function draw(){ if (!rafPending){ rafPending = true; requestAnimationFrame(() => { rafPending = false; render(); }); } }
+const lwNow = () => Math.max(1.5, Math.min(4, view.k/2500));
+function strokeLine(c, l){ c.beginPath(); for (let i=0;i<l.length;i++){ const p=l[i]; i ? c.lineTo(sx(p),sy(p)) : c.moveTo(sx(p),sy(p)); } c.stroke(); }
+function pathTo(c, s, upto){ c.beginPath(); c.moveTo(sx(s.path[0]), sy(s.path[0])); if (upto){ for (let j=1;j<upto.j;j++) c.lineTo(sx(s.path[j]),sy(s.path[j])); c.lineTo(sx(upto.p),sy(upto.p)); } else for (let j=1;j<s.path.length;j++) c.lineTo(sx(s.path[j]),sy(s.path[j])); }
+function strokeSeg(c, s, upto, pass, rw){
+  if (s.walk){ if (!pass) return; c.setLineDash([5,5]); c.strokeStyle = T.walk; c.lineWidth = 2.5; }
+  else { c.setLineDash([]); c.strokeStyle = pass ? routeById[s.route].c : T.bg; c.lineWidth = pass ? rw : rw+3; }
+  pathTo(c, s, upto); c.stroke(); c.setLineDash([]);
+}
+function prep(c, cv2){ if (cv2.width !== cv.width || cv2.height !== cv.height){ cv2.width = cv.width; cv2.height = cv.height; } c.setTransform(dpr,0,0,dpr,0,0); c.lineCap='round'; c.lineJoin='round'; }
+function buildBase(){
+  prep(bctx, base); bctx.fillStyle = T.bg; bctx.fillRect(0,0,W,H);
+  const lw = lwNow();
+  for (const r of D.routes){ bctx.globalAlpha = r.id === 'SI' ? 0.2 : (R ? 0.6 : 0.95); bctx.strokeStyle = r.c; bctx.lineWidth = lw; for (const l of lines[r.id]) strokeLine(bctx, l); }
+  if (R){ bctx.globalAlpha = 0.16; const rw = lw + 3.5;
+    for (const s of R.segs){ if (s.a.st===s.b.st || s.walk) continue; bctx.strokeStyle = routeById[s.route].c; bctx.lineWidth = rw; pathTo(bctx, s); bctx.stroke(); } }
+  bctx.globalAlpha = 1;
+}
+let doneN = 0;
+function buildDone(from, upto){
+  if (from === 0){ prep(dctx, done); dctx.setTransform(1,0,0,1,0,0); dctx.drawImage(base, 0, 0); }
+  dctx.setTransform(dpr,0,0,dpr,0,0); dctx.lineCap='round'; dctx.lineJoin='round';
+  const rw = lwNow() + 3.5;
+  for (const pass of [0,1]) for (let i=from;i<upto;i++){ const s = R.segs[i]; if (s.a.st!==s.b.st) strokeSeg(dctx, s, null, pass, rw); }
+  doneN = upto;
+}
+function render(){
   if (!W) return;
-  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.fillStyle = T.bg; ctx.fillRect(0,0,W,H);
-  ctx.lineCap='round'; ctx.lineJoin='round';
-  const lw = Math.max(1.5, Math.min(4, view.k/2500));
-  // network
-  ctx.globalAlpha = R ? 0.32 : 0.9;
-  for (const r of D.routes){ ctx.globalAlpha = r.id === 'SI' ? 0.15 : (R ? 0.32 : 0.9); ctx.strokeStyle = r.c; ctx.lineWidth = lw; for (const l of lines[r.id]){ ctx.beginPath(); l.forEach((p,i)=> i?ctx.lineTo(sx(p),sy(p)):ctx.moveTo(sx(p),sy(p))); ctx.stroke(); } }
-  ctx.globalAlpha = 1;
-  // route
-  if (R){
-    const rw = lw + 3.5;
-    const pathTo = (s, upto) => { ctx.beginPath(); ctx.moveTo(sx(s.path[0]), sy(s.path[0])); if (upto){ for (let j=1;j<upto.j;j++) ctx.lineTo(sx(s.path[j]),sy(s.path[j])); ctx.lineTo(sx(upto.p),sy(upto.p)); } else for (let j=1;j<s.path.length;j++) ctx.lineTo(sx(s.path[j]),sy(s.path[j])); };
-    // remaining route, faint
-    ctx.setLineDash([]); ctx.globalAlpha = 0.18;
-    for (const s of R.segs){ if (s.a.st===s.b.st) continue; ctx.strokeStyle = s.walk ? T.walk : routeById[s.route].c; ctx.lineWidth = rw; pathTo(s); ctx.stroke(); }
-    ctx.globalAlpha = 1;
-    // ridden so far: casing then color
-    for (const pass of [0,1]){
-      for (const s of R.segs){
-        if (s.a.t > now || s.a.st===s.b.st) continue;
-        const upto = now < s.b.t ? posAt(s, now) : null;
-        if (s.walk){ if (!pass) continue; ctx.setLineDash([5,5]); ctx.strokeStyle = T.walk; ctx.lineWidth = 2.5; }
-        else { ctx.setLineDash([]); ctx.strokeStyle = pass ? routeById[s.route].c : T.bg; ctx.lineWidth = pass ? rw : rw+3; }
-        pathTo(s, upto); ctx.stroke();
-      }
-    }
-    ctx.setLineDash([]);
-  }
+  const key = [W,H,dpr,view.k,view.tx,view.ty,T.bg,T.walk,R ? R.name+R.rows.length : ''].join('|');
+  if (key !== baseKey){ buildBase(); baseKey = key; doneKey = ''; }
+  // completed legs
+  let nDone = 0, curIdx = -1;
+  if (R){ while (nDone < R.segs.length && R.segs[nDone].b.t <= now) nDone++; if (nDone < R.segs.length && R.segs[nDone].a.t < now) curIdx = nDone; }
+  if (R){ if (doneKey !== key || nDone < doneN){ buildDone(0, nDone); doneKey = key; } else if (nDone > doneN) buildDone(doneN, nDone); }
+  ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(R ? done : base, 0, 0);
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.lineCap='round'; ctx.lineJoin='round';
+  if (curIdx >= 0){ const s = R.segs[curIdx]; if (s.a.st!==s.b.st){ const up = posAt(s, now), rw = lwNow()+3.5; strokeSeg(ctx, s, up, 0, rw); strokeSeg(ctx, s, up, 1, rw); } }
   // stations
   const showMiss = R && $('miss').checked;
-  const r0 = Math.max(2, Math.min(5, view.k/1800));
+  const r0 = Math.max(2.5, Math.min(5, view.k/1800));
   for (const s of D.stations){
     const x=sx(s.p), y=sy(s.p); if (x<-10||y<-10||x>W+10||y>H+10) continue;
-    const vt = R ? R.first.get(s.id) : undefined;
-    ctx.beginPath(); ctx.arc(x,y, vt!==undefined && vt<=now ? r0+1 : r0, 0, Math.PI*2);
-    if (vt!==undefined && vt<=now){ ctx.fillStyle=T.station; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle=T['station-ring']; ctx.stroke(); }
+    const vt = R ? R.first.get(s.id) : undefined, vis = vt!==undefined && vt<=now;
+    ctx.beginPath(); ctx.arc(x,y, vis ? r0+1 : r0, 0, Math.PI*2);
+    if (vis){ ctx.fillStyle=T.station; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle=T['station-ring']; ctx.stroke(); }
     else if (SIR.has(s.id)){ ctx.globalAlpha=0.35; ctx.fillStyle=T.bg; ctx.fill(); ctx.lineWidth=1; ctx.strokeStyle=T.idle; ctx.stroke(); ctx.globalAlpha=1; }
-    else if (showMiss && vt===undefined){ ctx.lineWidth=2; ctx.strokeStyle=T.missed; ctx.stroke(); }
-    else { ctx.fillStyle=T.bg; ctx.fill(); ctx.lineWidth=1.2; ctx.strokeStyle=T.idle; ctx.stroke(); }
+    else if (showMiss && vt===undefined){ ctx.fillStyle=T.bg; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle=T.missed; ctx.stroke(); }
+    else { ctx.fillStyle=T.bg; ctx.fill(); ctx.lineWidth=1.6; ctx.strokeStyle=T.muted; ctx.stroke(); }
   }
-  // labels when zoomed in
   if (view.k > 9000){
-    ctx.font = `500 11px ${getComputedStyle(document.body).getPropertyValue('--f-body')}`; ctx.fillStyle = T.ink; ctx.textBaseline='middle';
+    ctx.font = LABEL_FONT; ctx.fillStyle = T.ink; ctx.textBaseline='middle';
     for (const s of D.stations){ const x=sx(s.p), y=sy(s.p); if (x<0||y<0||x>W||y>H) continue; ctx.strokeStyle=T.bg; ctx.lineWidth=3; ctx.strokeText(s.n, x+r0+5, y); ctx.fillText(s.n, x+r0+5, y); }
   }
-  // selected station ring
   if (selected){ ctx.beginPath(); ctx.arc(sx(selected.p), sy(selected.p), r0+6, 0, Math.PI*2); ctx.lineWidth=2; ctx.strokeStyle=T.accent; ctx.stroke(); }
-  // current position
   if (R && now < R.t1 && now > R.t0){
     const s = curSeg(), p = s ? posAt(s, now).p : null;
     if (p){ ctx.beginPath(); ctx.arc(sx(p),sy(p), 7.5, 0, Math.PI*2); ctx.fillStyle = s.walk ? T.walk : (routeById[s.route]?.c || T.accent); ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=T.surface; ctx.stroke(); }
