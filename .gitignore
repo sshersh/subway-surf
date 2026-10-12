@@ -1,0 +1,7 @@
+gtfs/
+*.npz
+model*.json
+model*.npy
+run_*.npy
+*.log
+__pycache__/
