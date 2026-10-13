@@ -76,6 +76,11 @@ textarea{width:100%;min-height:90px;font:12px/1.4 var(--f-mono);padding:8px;bord
 code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px 4px;border-radius:3px}
 .file{position:relative;overflow:hidden}
 .file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.runpick{display:flex;flex-direction:column;gap:4px}
+.runpick select{width:100%;font:500 .82rem var(--f-body);padding:7px 8px;border-radius:6px;border:1px solid var(--rule);background:var(--surface);color:var(--ink)}
+.runpick small{color:var(--muted);font-size:.74rem}
+.delta{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.delta.worse{color:var(--missed)} .delta.best{color:var(--ok)}
 .split{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;height:10px;border-radius:3px;overflow:hidden}
 .split i{display:block;height:100%}
 .keyrow{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.75rem;color:var(--muted)}
@@ -148,6 +153,11 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
   <aside class="panel">
     <section class="sec">
       <div class="label">Loaded route</div>
+      <div class="runpick" id="runpick" hidden>
+        <label class="label" for="run">Solver run</label>
+        <select id="run"></select>
+        <small id="runnote"></small>
+      </div>
       <div class="routename" id="rname"></div>
       <div class="stats">
         <div class="stat"><b id="sVisited">0</b><small id="sTotal">of 0 stations</small></div>
@@ -359,14 +369,32 @@ function fitRoute(){
   let a=[1e9,1e9,-1e9,-1e9]; for (const r of R.rows){const [x,y]=r.st.p; a=[Math.min(a[0],x),Math.min(a[1],y),Math.max(a[2],x),Math.max(a[3],y)];}
   const pw=(a[2]-a[0])*0.15+0.01, ph=(a[3]-a[1])*0.15+0.01; fit([a[0]-pw,a[1]-ph,a[2]+pw,a[3]+ph]);
 }
-const SOLS = D.solutions || {local: D.solution};
+// Logged solver runs (results/runs). Older builds embed only one solution per rules.
+const RUNS = (D.runs && D.runs.length) ? D.runs
+  : Object.entries(D.solutions || {local: D.solution}).map(([rules, route]) => ({id: rules, rules, label: 'Best found', route, total_s: route.stats.total_s}));
+const runsFor = m => RUNS.filter(r => r.rules === m);
+const bestFor = m => runsFor(m).reduce((a, b) => (!a || b.total_s < a.total_s) ? b : a, null);
 let MODE = 'local';
-try { const m = localStorage.getItem('subway-mode'); if (m && SOLS[m]) MODE = m; } catch(e){}
-if (!SOLS.express) $('mode').querySelector('[value=express]').disabled = true;
+try { const m = localStorage.getItem('subway-mode'); if (m && runsFor(m).length) MODE = m; } catch(e){}
+if (!runsFor('express').length) $('mode').querySelector('[value=express]').disabled = true;
 $('mode').value = MODE;
-const curSol = () => SOLS[MODE];
-const solName = () => `Best found (${MODE}): ${curSol().stats.start_station} → ${curSol().stats.end_station}`;
-function loadMode(){ $('paste').value = ''; load(solName(), curSol().rows, true, curSol()); lastStatus = null; loadStatus(); }
+const RUNSEL = {};
+const curRun = () => runsFor(MODE).find(r => r.id === RUNSEL[MODE]) || bestFor(MODE);
+const curSol = () => curRun().route;
+const isBest = () => curRun() === bestFor(MODE);
+const solName = () => `${isBest() ? 'Best found' : curRun().label} (${MODE}): ${curSol().stats.start_station} → ${curSol().stats.end_station}`;
+const fmtDate = iso => { try { return new Date(iso).toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}); } catch(e){ return ''; } };
+function fillRuns(){
+  const list = runsFor(MODE).slice().sort((a, b) => (b.created || '').localeCompare(a.created || ''));
+  const best = bestFor(MODE);
+  $('runpick').hidden = list.length < 2;
+  $('run').innerHTML = list.map(r => `<option value="${r.id}">${dur(r.total_s)} · ${r.created ? fmtDate(r.created) + ' · ' : ''}${r.label}${r === best ? ' ★ best' : ''}</option>`).join('');
+  $('run').value = curRun().id;
+  const r = curRun();
+  $('runnote').textContent = [r.method, r.transfers ? `Transfers: ${r.transfers}` : '', r.start_fixed ? `Start fixed at ${r.start_fixed}` : ''].filter(Boolean).join(' · ');
+}
+$('run').onchange = () => { RUNSEL[MODE] = $('run').value; loadMode(); };
+function loadMode(){ fillRuns(); $('paste').value = ''; load(solName(), curSol().rows, true, curSol()); lastStatus = null; loadStatus(); }
 $('mode').onchange = () => { MODE = $('mode').value; try { localStorage.setItem('subway-mode', MODE); } catch(e){} loadMode(); };
 const secs = v => v.split(':').reduce((a,x)=>a*60+ +x, 0);
 let ITIN = [], lastOn = -1;
@@ -380,7 +408,7 @@ function renderSol(sol){
   $('split').innerHTML = parts.map(p => `<i style="background:${p[2]}" title="${p[0]}"></i>`).join('');
   $('splitkey').innerHTML = parts.map(p => `<span><i style="background:${p[2]}"></i>${p[0]} ${dur(p[1])}</span>`).join('');
   $('facts').innerHTML = [
-    ['Total', `${dur(s.total_s)} (h:mm)`], ['Start', `${s.start_station}, ${hhmm(secs(s.start))}`], ['Finish', `${s.end_station}, ${hhmm(secs(s.end))}`],
+    ['Total', `${dur(s.total_s)} (h:mm)` + (() => { const b = bestFor(MODE); if (!b || RUNS.length < 2) return ''; const d = s.total_s - b.total_s; return d > 0 ? ` <span class="delta worse">+${dur(d)} vs best</span>` : ' <span class="delta best">best run</span>'; })()], ['Start', `${s.start_station}, ${hhmm(secs(s.start))}`], ['Finish', `${s.end_station}, ${hhmm(secs(s.end))}`],
     ['Rules', s.rules === 'express' ? 'Express: passing through counts' : 'Local: the train must stop'], ['Trains', `${s.rides} boardings`], ['Walks', `${s.walks} station-to-station`], ['Stations', `${s.stations} of ${TOTAL}${s.passed_only ? `, ${s.passed_only} only passed through` : ''}`]
   ].map(([a,b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
   $('itlabel').textContent = `Itinerary · ${sol.itin.length} legs`;
@@ -562,6 +590,7 @@ function renderStatus(s){
 }
 let lastStatus = null;
 async function loadStatus(){
+  if (!isBest()){ $('status').hidden = true; return; }
   try { const r = await fetch((MODE === 'express' ? 'status_express.json' : 'status.json') + '?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) throw new Error(r.status); renderStatus(await r.json()); }
   catch(e){ $('status').hidden = true; /* no status file here (e.g. not the GitHub Pages copy) */ }
 }

@@ -1,4 +1,4 @@
-"""Embed map data + a solved route into the viewer template as a standalone page.
+"""Embed map data, the best routes and every logged solver run into the viewer as a standalone page.
 
 usage: python3 viewer/build.py <data.json from prep.py> <local route.json> <out.html> [<express route.json>]
 """
@@ -14,6 +14,11 @@ d = json.load(open(data_path)); d.pop("sample", None)
 d["solutions"] = {"local": json.load(open(route_path))}
 if len(sys.argv) > 4:
     d["solutions"]["express"] = json.load(open(sys.argv[4]))
+# every logged solver run (results/runs), for the run picker
+runs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "results", "runs")
+if os.path.exists(os.path.join(runs_dir, "index.json")):
+    d["runs"] = [dict(r, route=json.load(open(os.path.join(runs_dir, r["file"]))))
+                 for r in json.load(open(os.path.join(runs_dir, "index.json")))]
 tpl = open(os.path.join(os.path.dirname(__file__), "template.html")).read()
 page = tpl.replace("__DATA__", json.dumps(d, separators=(",", ":")).replace("</", "<\\/"))
 open(out, "w").write(HEAD + page + "</body></html>")

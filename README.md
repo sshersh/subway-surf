@@ -6,8 +6,8 @@ A route planner for the NYC Subway Challenge, which means visiting every subway 
 
 | Rules | Time | Start | Finish | Trains | Walks |
 |---|---|---|---|---|---|
-| **Local**: the train must stop at every station (the full-system record rule) | **25 h 06 min** | Far Rockaway–Mott Av, 05:52 | Pelham Bay Park, 06:58 next day | 79 | 26 |
-| **Express**: passing through a station counts | **24 h 59 min** | Far Rockaway–Mott Av, 08:13 | Pelham Bay Park, 09:12 next day | 73 | 32 |
+| **Local**: the train must stop at every station (the full-system record rule) | **24 h 25 min** | Far Rockaway–Mott Av, 05:12 | Bay Ridge–95 St, 05:37 next day | 78 | 22 |
+| **Express**: passing through a station counts | **23 h 47 min** | Far Rockaway–Mott Av, 13:20 | Pelham Bay Park, 13:07 next day | 69 | 31 |
 
 The official record is 22 h 14 m for 472 stations (Kate Jones, 2023), set under local rules with running and buses allowed. Trail of Bits reported 20 h 42 min under express rules, but that's an estimate from an undirected graph with average waits, never checked against the timetable. Both routes here pass `solver/verify.py` against the raw GTFS.
 
@@ -81,6 +81,16 @@ The MTA's own feed is at <https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip> 
 - **Planned work during the next run**: planned alerts that overlap a leg's clock time if the run started at its scheduled time on the next weekday.
 
 The banner is only shown where a `status.json` sits next to the page, so it's on GitHub Pages but not in a local copy. For this to work, set **Settings → Pages → Source** to **GitHub Actions**.
+
+## Run log
+
+Every solver run worth keeping goes in `results/runs/`. Each route is saved as `<id>.json`, and `index.json` lists them with their rules, time, method and transfer assumptions. To log a run:
+
+```bash
+python3 solver/log_run.py results/some_route.json --label "Time-aware planner, round 3" --method "..." --transfers "1 min"
+```
+
+The viewer embeds every logged run. A **Solver run** drop-down lets you switch between runs for the selected rules, with the best one marked and every other run shown as "+h:mm vs best". The live service banner applies only to each rules' best route, so it's hidden while you view an older run.
 
 ## Results format
 
