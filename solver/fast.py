@@ -63,6 +63,8 @@ def replay_cp(order, t0, start_leg, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, 
         leg += 1
         if pos < n:
             pos += 1
+    if leg < MAXL:   # final state, for callers that add a last leg (e.g. a fixed finish)
+        cp_cur[leg] = cur; cp_t[leg] = t; cp_trip[leg] = cur_trip
     gen_box[0] = gen; nlegs_box[0] = leg
     return t, first_dep, nvis
 

@@ -82,6 +82,16 @@ The MTA's own feed is at <https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip> 
 
 The banner is only shown where a `status.json` sits next to the page, so it's on GitHub Pages but not in a local copy. For this to work, set **Settings → Pages → Source** to **GitHub Actions**.
 
+## Fixed start and finish (trials)
+
+By default the solver chooses its own start and finish. To try a specific pair, give the planner `--start <idx> --end <idx>` and anneal with `solver/ends.py`. The route then starts on that platform (waiting there counts) and is only done once everything is covered and you've arrived at the finish by train. Export with `export.py … --end <idx>`. Station indices are positions in `model.json`'s `stations` list.
+
+```bash
+python3 tseed.py $GTFS E 1 0.5 --times times.json --start 356 --end 154            # Far Rockaway -> Flushing-Main St
+python3 ends.py E_gseed.npy 1 18 E_sa.npy 120 2 --end 154 [--express]
+python3 export.py E_sa.npy trial.json --end 154 [--express]
+```
+
 ## Run log
 
 Every solver run worth keeping goes in `results/runs/`. Each route is saved as `<id>.json`, and `index.json` lists them with their rules, time, method and transfer assumptions. To log a run:

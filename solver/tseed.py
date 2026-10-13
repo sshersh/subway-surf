@@ -23,6 +23,12 @@ if "--times" in sys.argv:
 PASS = None      # --passes model_pass.npz: express rules, passing through a station counts
 if "--passes" in sys.argv:
     i = sys.argv.index("--passes"); PASS = np.load(sys.argv[i + 1]); del sys.argv[i:i + 2]
+def _flag(name):
+    if name in sys.argv:
+        i = sys.argv.index(name); v = int(sys.argv[i + 1]); del sys.argv[i:i + 2]; return v
+    return -1
+START = _flag("--start")   # station index the route must start at
+END = _flag("--end")       # station index the route must finish at
 WIN = 45 * 60   # +/- window around the expected time
 SRC = sys.argv[1]; OUT = sys.argv[2]
 m, meta = load("model")
@@ -115,12 +121,18 @@ for a in range(K):
     if succ[a] != a: A[a, succ[a]] = 0
     else: A[a, a] = 0
 A[K, :K] = 0; A[:K, K] = M                          # dummy cluster: open path
+if START >= 0:   # dummy -> start cluster only
+    A[K, :K] = BIG; A[K, np.where(cluster == START)[0]] = 0
+if END >= 0:     # only the end cluster may lead back to the dummy
+    A[:K, K] = BIG; A[np.where(cluster == END)[0], K] = M
 np.fill_diagonal(A, 0)
 t = time.time()
 tour = elkai.DistanceMatrix(A.tolist()).solve_tsp(runs=int(sys.argv[3]) if len(sys.argv) > 3 else 1)
 print("lkh s", round(time.time() - t, 1), flush=True)
 tour = tour[:-1] if tour[0] == tour[-1] else tour
 i = tour.index(K); tour = tour[i + 1:] + tour[:i]
+if START >= 0: assert cluster[tour[0]] == START, "start not first"
+if END >= 0: assert cluster[tour[-1]] == END, "end not last"
 keys = [tuple(k) for k in json.load(open("model_keys.json"))]; kid = {k: i for i, k in enumerate(keys)}
 order, okey, seen = [], [], set()
 prev = None

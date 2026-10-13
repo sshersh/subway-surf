@@ -196,5 +196,41 @@
   "walks": 22,
   "passed_only": 0,
   "file": "202610122115-local.json"
+ },
+ {
+  "id": "202610130737-local",
+  "created": "2026-10-13T07:37:16-07:00",
+  "rules": "local",
+  "label": "Trial: Far Rockaway \u2192 Flushing\u2013Main St",
+  "method": "Time-aware LKH seed forced to start and finish there; 18-min anneal",
+  "transfers": "1 min",
+  "start_fixed": "Far Rockaway\u2013Mott Av, finishing at Flushing\u2013Main St",
+  "total_s": 90360,
+  "start": "14:50:00",
+  "end": "39:56:00",
+  "start_station": "Far Rockaway-Mott Av",
+  "end_station": "Flushing-Main St",
+  "rides": 66,
+  "walks": 19,
+  "passed_only": 0,
+  "file": "202610130737-local.json"
+ },
+ {
+  "id": "202610130737-express",
+  "created": "2026-10-13T07:37:16-07:00",
+  "rules": "express",
+  "label": "Trial: Far Rockaway \u2192 Flushing\u2013Main St",
+  "method": "Time-aware LKH seed with pass-through states, forced to start and finish there; 18-min anneal",
+  "transfers": "1 min",
+  "start_fixed": "Far Rockaway\u2013Mott Av, finishing at Flushing\u2013Main St",
+  "total_s": 89370,
+  "start": "05:12:30",
+  "end": "30:02:00",
+  "start_station": "Far Rockaway-Mott Av",
+  "end_station": "Flushing-Main St",
+  "rides": 74,
+  "walks": 27,
+  "passed_only": 48,
+  "file": "202610130737-express.json"
  }
 ]

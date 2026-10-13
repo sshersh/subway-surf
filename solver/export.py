@@ -6,6 +6,7 @@ from engine import Engine
 E = Engine("model"); m = E.m; meta = E.meta
 sol = np.load(sys.argv[1]).astype(np.int64)
 EXPRESS = "--express" in sys.argv     # passing through a station counts (needs model_pass.npz)
+END_AT = int(sys.argv[sys.argv.index("--end") + 1]) if "--end" in sys.argv else -1   # trial: fixed start + finish
 PP = None
 if EXPRESS:
     from expr import FastX, recordx
@@ -23,6 +24,10 @@ elif sol.ndim == 2:   # line-aware solution [order, okey, t0]
 else:
     t0, order = int(sol[0]), sol[1:]
     end, first, nv, legs = E.record(order, t0)
+if END_AT >= 0:   # add the closing ride to the finish station; the clock starts on the first platform
+    from ends import Ends
+    end_arr, extra = Ends(END_AT, EXPRESS).final_legs(order, t0)
+    legs = list(legs) + extra
 st = meta["stations"]; names = meta["names"]; troute = meta["trip_route"]; T = meta["T"]
 dep_t, arr_t, dep_s, arr_s, trip, nxt = m["dep_t"], m["arr_t"], m["dep_s"], m["arr_s"], m["trip"], m["nxt"]
 fp = {}
@@ -34,6 +39,9 @@ def hms(s): return f"{s//3600:02d}:{s%3600//60:02d}:{s%60:02d}"
 rows, itin = [], []
 visited = {}
 t = None; here = None
+if END_AT >= 0:
+    t, here = int(t0), int(order[0])
+    rows.append({"stop_id": st[here], "time": hms(t), "route": ""})
 walk_s = ride_s = 0
 for b, e, w in legs:
     b, e, w = int(b), int(e), int(w)
@@ -78,6 +86,8 @@ times = [sum(int(x) * k for x, k in zip(r["time"].split(":"), (3600, 60, 1))) fo
 assert all(a <= b for a, b in zip(times, times[1:])), "times monotonic"
 assert len(visited) == E.n, f"visited {len(visited)} of {E.n}"
 last_new = max(visited.values())
+if END_AT >= 0:
+    last_new = max(last_new, int(end_arr)); first = int(t0)
 total = last_new - first
 # trim rows after the last new station
 k = max(i for i, x in enumerate(times) if x <= last_new)
@@ -85,9 +95,9 @@ rows = rows[:k + 1]
 nride = sum(1 for L in itin if L["kind"] == "ride")
 stats = {"total_s": int(total), "start": hms(int(first)), "end": hms(int(last_new)), "stations": len(visited), "rules": "express" if EXPRESS else "local",
          "passed_only": len(set(r["stop_id"] for r in rows if r.get("pass")) - set(r["stop_id"] for r in rows if not r.get("pass"))),
-         "ride_s": ride_s, "walk_s": walk_s, "wait_s": int(total) - ride_s - walk_s, "rides": nride,
+         "ride_s": ride_s, "walk_s": walk_s, "wait_s": int(total) - ride_s - walk_s, "fixed_ends": END_AT >= 0, "rides": nride,
          "walks": sum(1 for L in itin if L["kind"] == "walk"), "start_station": names[int(order[0])],
-         "end_station": names[max(visited, key=visited.get)]}
+         "end_station": names[END_AT] if END_AT >= 0 else names[max(visited, key=visited.get)]}
 for L in itin: L.pop("trip", None)
 json.dump({"rows": rows, "itin": itin, "stats": stats}, open(sys.argv[2], "w"))
 print(json.dumps(stats, indent=1))
