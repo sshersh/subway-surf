@@ -18,7 +18,7 @@ WALK_SPEED = 1.4          # m/s, brisk walk
 DETOUR = 1.3              # street-grid factor over straight line
 WALK_MAX = 1600           # m straight-line cap for generated walking links
 WALK_OVERHEAD = 120       # s to exit one station and enter the other
-DEFAULT_CHANGE = 180      # s, matches GTFS same-station min_transfer_time
+DEFAULT_CHANGE = 60       # s, default time to change trains within a station
 
 parent = {s["stop_id"]: (s["parent_station"] or s["stop_id"]) for s in stops}
 trip_info = {t["trip_id"]: t for t in trips if t["service_id"] == "Weekday" and t["route_id"] != "SI"}  # SIR needs the ferry; excluded like the official challenge
@@ -61,18 +61,32 @@ for k in range(len(order) - 1):
     if trip[i] == trip[j]:
         nxt[i] = j
 
-# change time at each station
+# change time at each station (seconds to get off one train and be ready for another)
+#   same station: 1 min; cross-platform (GTFS 0) 30 s; the few big complexes GTFS rates 5 min -> 3 min
+#   linked stations (different GTFS parents): 1 min + walk at ~1.1 m/s, never above the GTFS figure
+SAME_STATION = {0: 30, 180: 60, 300: 180}
+lat0 = {s["stop_id"]: (float(s["stop_lat"]), float(s["stop_lon"])) for s in stops}
+def link_time(a, b, gtfs_t):
+    (la, oa), (lb, ob) = lat0[a], lat0[b]
+    d = math.hypot((la - lb) * 111_000, (oa - ob) * 111_000 * math.cos(math.radians(40.72)))
+    if gtfs_t == 0:            # GTFS 0 = cross-platform (e.g. Queensboro Plaza)
+        return 30
+    return int(min(gtfs_t, 60 + d / 1.1))
 chg = np.full(N, DEFAULT_CHANGE, dtype=np.int64)
+same = collections.defaultdict(list)
 foot = collections.defaultdict(dict)
 for tr in transfers:
     a, b = parent.get(tr["from_stop_id"], tr["from_stop_id"]), parent.get(tr["to_stop_id"], tr["to_stop_id"])
     if a not in sid or b not in sid:
         continue
-    t = int(tr["min_transfer_time"] or DEFAULT_CHANGE)
+    g = int(tr["min_transfer_time"] or 0)
     if a == b:
-        chg[sid[a]] = t
+        same[sid[a]].append(SAME_STATION.get(g, DEFAULT_CHANGE))
     else:
-        foot[sid[a]][sid[b]] = min(t, foot[sid[a]].get(sid[b], 1e9))
+        tt = max(30, link_time(a, b, g))
+        foot[sid[a]][sid[b]] = min(tt, foot[sid[a]].get(sid[b], 1e9))
+for s, v in same.items():
+    chg[s] = max(v)   # a station's slowest same-station transfer applies to every change there
 
 lat = np.array([float(s["stop_lat"]) for s in stations]); lon = np.array([float(s["stop_lon"]) for s in stations])
 def dist_m(i, j):

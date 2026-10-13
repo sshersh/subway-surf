@@ -11,7 +11,7 @@ Open `viewer/index.html` in a browser to watch it play back.
 - A station counts only when a train you're riding **stops** there. Passing through on an express doesn't count.
 - Staten Island Railway is excluded: it can't be reached without the ferry, and the challenge excludes it.
 - Weekday GTFS schedule. Trains run exactly on time.
-- Each change of trains takes 3 min (the GTFS `min_transfer_time`).
+- Changing trains takes 1 min within a station, 30 s cross-platform, and 3 min at the six big complexes the MTA rates at 5 min. Between linked stations (e.g. Times Sq ↔ Port Authority) it takes 1 min plus the walk at 1.1 m/s, never more than the MTA's `min_transfer_time`. The MTA's own figures (mostly 3 min) are conservative trip-planner allowances, not measured walks.
 - Walking between stations is allowed up to 1.6 km straight-line. The walking model is 1.4 m/s with a ×1.3 street factor, plus 2 min to leave one station and enter the other.
 
 ## How it works
@@ -20,6 +20,7 @@ Open `viewer/index.html` in a browser to watch it play back.
 2. **Seeds** are first guesses at the route:
    - `solver/seed.py` builds an open-path TSP over all stations, using static travel times (LKH via `elkai`).
    - `solver/gseed.py` builds a line-aware version: a generalized TSP over (station, line, direction) states. Staying on a train is free, and boarding costs half the headway. It's solved through the Noon–Bean transform.
+   - `solver/tseed.py` is the time-of-day-aware version. Given expected visit times (`--times`, e.g. from a previous solution), each boarding costs half the gap between trains on that line around that hour, or the wait for the next train if none run then. Ride segments use that hour's run times, so an express making local stops at night is only cheap at night. Iterate: solve, re-estimate times, solve again.
 3. **`solver/engine.py`** replays a station order against the timetable using the Connection Scan Algorithm, compiled with numba. From each point it takes the earliest train to the next station not yet visited, and every stop along the way counts. `solver/fast.py` makes the replay incremental: a change at position *p* re-simulates only from *p* onward, at about 1 ms per evaluation.
 4. **`solver/sa2.py`** runs simulated annealing over the station order and start time. Moves are segment relocation, reversal, swaps and start-time shifts.
    - `solver/sa3.py` is a line-constrained variant built on `fast2.py`. It's more robust to start-time changes but scored worse in testing (29.3 h vs 25.9 h).
@@ -75,7 +76,7 @@ The viewer's "Compare another route" box accepts the same CSV or JSON.
 
 ## Ideas to get closer to the record
 
-- Running speed between stations, and per-station transfer times instead of a flat 3 min.
+- Running speed between stations, and measured transfer times (e.g. from station layouts in OpenStreetMap).
 - Allowing buses, which Guinness permits.
 - Counting with the 472 rule, where some transfer complexes count as one station.
 - A replay that prefers trains covering new stations, and robustness to delays.
