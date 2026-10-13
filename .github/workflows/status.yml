@@ -35,6 +35,10 @@ jobs:
           python3 status/check_status.py --out _site/status.json || \
             python3 -c "import json,time; json.dump({'checked_at':int(time.time()),'verdict':'unknown','now':[],'next_run':{'issues':[]}},open('_site/status.json','w'))"
           cp _site/status.json _site/viewer/status.json
+          if [ -f results/best_route_express.json ]; then
+            python3 status/check_status.py --route results/best_route_express.json --out _site/status_express.json || true
+            [ -f _site/status_express.json ] && cp _site/status_express.json _site/viewer/status_express.json
+          fi
       - name: Assemble site
         run: |
           cp viewer/index.html _site/index.html

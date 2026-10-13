@@ -2,13 +2,21 @@
 
 A route planner for the NYC Subway Challenge, which means visiting every subway station in one run. It plans against the MTA's real weekday timetable and includes a map viewer that plays the route back.
 
-**Best route found so far: 475 stations in 25 h 54 min.** It starts at Beach 25 St at 13:05 on a weekday and finishes at Wakefield–241 St at 14:59 the next day. That's 67 train boardings and 28 walks between stations. This is a heuristic result, not a proven optimum. The official record is 22 h 14 m for 472 stations (2023), achieved with running, buses and tighter transfers.
+**Best routes found so far** (heuristic results, not proven optima), on the weekday schedule with 1-minute transfers:
+
+| Rules | Time | Start | Finish | Trains | Walks |
+|---|---|---|---|---|---|
+| **Local**: the train must stop at every station (the full-system record rule) | **25 h 06 min** | Far Rockaway–Mott Av, 05:52 | Pelham Bay Park, 06:58 next day | 79 | 26 |
+| **Express**: passing through a station counts | **24 h 59 min** | Far Rockaway–Mott Av, 08:13 | Pelham Bay Park, 09:12 next day | 73 | 32 |
+
+The official record is 22 h 14 m for 472 stations (Kate Jones, 2023), set under local rules with running and buses allowed. Trail of Bits reported 20 h 42 min under express rules, but that's an estimate from an undirected graph with average waits, never checked against the timetable. Both routes here pass `solver/verify.py` against the raw GTFS.
 
 Open `viewer/index.html` in a browser to watch it play back.
 
 ## Rules modeled
 
-- A station counts only when a train you're riding **stops** there. Passing through on an express doesn't count.
+- **Local rules** (default): a station counts only when a train you're riding **stops** there.
+- **Express rules**: a station also counts when your train passes through it without stopping. `solver/passes.py` works out which stations each express hop passes: the station must lie between the hop's two stops on some other trip, and within 120 m of the express's own track shape.
 - Staten Island Railway is excluded: it can't be reached without the ferry, and the challenge excludes it.
 - Weekday GTFS schedule. Trains run exactly on time.
 - Changing trains takes 1 min within a station, 30 s cross-platform, and 3 min at the six big complexes the MTA rates at 5 min. Between linked stations (e.g. Times Sq ↔ Port Authority) it takes 1 min plus the walk at 1.1 m/s, never more than the MTA's `min_transfer_time`. The MTA's own figures (mostly 3 min) are conservative trip-planner allowances, not measured walks.
@@ -43,14 +51,23 @@ python3 gseed.py $GTFS run 1 0.5                  # line-aware seed -> run_gseed
 python3 -c "import numpy as np; np.save('run_order.npy', np.load('run_gseed.npy')[0])"
 python3 sa2.py run_order.npy 1 20 best.npy 150 2   # 20 minutes
 python3 export.py best.npy ../results/best_route.json
+python3 verify.py $GTFS ../results/best_route.json        # independent check against raw GTFS
+
+# Express rules: pass-through map, line-aware seed with pass-through states, anneal, export
+python3 passes.py $GTFS model                               # -> model_pass.npz
+python3 tseed.py $GTFS X 1 0.5 --times times.json --passes model_pass.npz
+python3 -c "import numpy as np; np.save('X_order.npy', np.load('X_gseed.npy')[0])"
+python3 sax.py X_order.npy 1 15 bestx.npy 120 2
+python3 export.py bestx.npy ../results/best_route_express.json --express
+python3 verify.py $GTFS ../results/best_route_express.json --express
 
 # 3. Rebuild the viewer
 cd ..
 python3 viewer/prep.py $GTFS viewer/data.json
-python3 viewer/build.py viewer/data.json results/best_route.json viewer/index.html
+python3 viewer/build.py viewer/data.json results/best_route.json viewer/index.html results/best_route_express.json
 ```
 
-To replay the saved best route, run `python3 export.py ../results/best_solution.npy out.json` from `solver/` after building the model. Its timings depend on the GTFS version: the saved route was solved on feed `20260826` (valid 2026-05-26 to 2026-10-31).
+To replay the saved best routes, run `python3 export.py ../results/best_solution.npy out.json` (and `best_solution_express.npy … --express`) from `solver/` after building the model. Its timings depend on the GTFS version: the saved route was solved on feed `20260826` (valid 2026-05-26 to 2026-10-31).
 
 The MTA's own feed is at <https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip> (CSV). The scripts expect the JSON export, but each file has the same columns.
 

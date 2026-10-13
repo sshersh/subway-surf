@@ -20,6 +20,9 @@ TIMES = None
 if "--times" in sys.argv:
     i = sys.argv.index("--times"); TIMES = {int(k): v for k, v in json.load(open(sys.argv[i + 1])).items()}
     del sys.argv[i:i + 2]
+PASS = None      # --passes model_pass.npz: express rules, passing through a station counts
+if "--passes" in sys.argv:
+    i = sys.argv.index("--passes"); PASS = np.load(sys.argv[i + 1]); del sys.argv[i:i + 2]
 WIN = 45 * 60   # +/- window around the expected time
 SRC = sys.argv[1]; OUT = sys.argv[2]
 m, meta = load("model")
@@ -39,6 +42,15 @@ for d, a, s1, s2, tr in zip(m["dep_t"], m["arr_t"], m["dep_s"], m["arr_s"], m["t
     k = tkey[tr]
     runs[(k, s1, s2)].append((int(d) % DAY, int(a - d))); deps[(k, s1)].append(int(d) % DAY)
 for v in deps.values(): v.sort()
+hop_pass = {}
+if PASS is not None:
+    pc = collections.defaultdict(collections.Counter)
+    pp, pl = PASS["ptr"], PASS["lst"]
+    for c in np.nonzero(np.diff(pp))[0]:
+        tr = int(m["trip"][c])
+        if tr >= T: continue
+        pc[(tkey[tr], int(m["dep_s"][c]), int(m["arr_s"][c]))][tuple(int(x) for x in pl[pp[c]:pp[c + 1]])] += 1
+    hop_pass = {k: list(v.most_common(1)[0][0]) for k, v in pc.items()}
 state = {}
 def sn(k, s):
     if (k, s) not in state: state[(k, s)] = n + len(state)
@@ -54,9 +66,15 @@ for (k, s1, s2), v in runs.items():
     else:
         near = [r for d, r in v if circ(d, h) <= WIN]
         w = float(np.median(near)) if near else float(np.median([r for _, r in v])) + 1800
-    E.append((sn(k, s1), sn(k, s2), w))
+    plist = hop_pass.get((k, s1, s2)) if PASS is not None else None
+    if plist:   # ride through the passed stations: pass-only states, no boarding or alighting there
+        chain = [sn(k, s1)] + [sn((k[0], k[1], "pass"), p) for p in plist] + [sn(k, s2)]
+        for u, v in zip(chain, chain[1:]): E.append((u, v, w / (len(chain) - 1)))
+    else:
+        E.append((sn(k, s1), sn(k, s2), w))
 chg = m["chg"]
 for (k, s), node in list(state.items()):
+    if len(k) == 3: continue      # pass-through state
     dl = deps.get((k, s), [])
     h = expected(s)
     if h is None or not dl:
@@ -109,7 +127,7 @@ prev = None
 for v in tour:
     s = int(cluster[v])
     if s not in seen:
-        seen.add(s); order.append(s); okey.append(kid[key_of[nodes[v]][0]])
+        seen.add(s); order.append(s); okey.append(kid.get(key_of[nodes[v]][0], -1))
 # contiguity check and static cost along entry states
 runs_ = sum(1 for a, b in zip(tour, tour[1:]) if cluster[a] != cluster[b])
 print("clusters", len(order), "of", n, "cluster switches", runs_)

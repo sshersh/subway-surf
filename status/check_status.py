@@ -85,6 +85,7 @@ def active(periods, t):
 def route_needs(rows):
     """(line, station, seconds-into-service-day) for every stop the plan needs a train to make."""
     need = []
+    rows = [r for r in rows if not r.get("pass")]   # passing through needs no stop: skipped-stop alerts don't matter there
     for prev, cur in zip(rows, rows[1:]):
         if not cur["route"]: continue
         t = sum(int(x) * k for x, k in zip(cur["time"].split(":"), (3600, 60, 1)))

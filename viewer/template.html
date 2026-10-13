@@ -28,6 +28,8 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);fo
 *{box-sizing:border-box}
 .sign{background:var(--sign);color:var(--sign-ink);padding:14px 16px 12px;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;border-bottom:4px solid var(--sign)}
 .sign h1{font-family:var(--f-display);font-weight:700;font-size:1.6rem;letter-spacing:.005em;margin:0;line-height:1.1;text-wrap:balance}
+.sign .mode{margin-left:auto;display:flex;align-items:center;gap:8px;font:600 .8rem var(--f-body);color:var(--sign-ink)}
+.sign .mode select{background:var(--sign);color:var(--sign-ink);border:1px solid #4A4F55;border-radius:6px;padding:6px 8px;font:600 .82rem var(--f-body);max-width:100%}
 .sign .feed{font-family:var(--f-mono);font-size:.75rem;color:#B8BCC0;letter-spacing:.02em}
 .app{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:520px}
 .mapwrap{position:relative;min-width:0;border-right:1px solid var(--rule)}
@@ -118,6 +120,12 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
 <header class="sign">
   <h1>Subway Challenge Map</h1>
   <span class="feed" id="feed"></span>
+  <label class="mode" for="mode">Rules
+    <select id="mode">
+      <option value="local">Local: the train must stop</option>
+      <option value="express">Express: passing through counts</option>
+    </select>
+  </label>
 </header>
 
 <main class="app">
@@ -309,7 +317,7 @@ function build(name, rawRows){
     if (!stById[id]) errs.push(`Row ${i+1}: unknown stop_id "${r.stop_id}"`);
     else if (isNaN(t)) errs.push(`Row ${i+1}: can't read time "${r.time}"`);
     else if (route && !routeById[route]) errs.push(`Row ${i+1}: unknown route "${route}"`);
-    else rows.push({st: stById[id], t, route});
+    else rows.push({st: stById[id], t, route, pass: r.pass === true || r.pass === 1 || r.pass === '1' || r.pass === 'true'});
   });
   for (let i=1;i<rows.length;i++) if (rows[i].t < rows[i-1].t) { errs.push(`Times go backwards at ${rows[i].st.n} (${hhmm(rows[i].t)}). Use times past 24:00 for after midnight, e.g. 25:10.`); break; }
   if (rows.length < 2) errs.push('Need at least two rows.');
@@ -320,11 +328,11 @@ function build(name, rawRows){
     const cum=[0]; for (let j=1;j<path.length;j++) cum.push(cum[j-1] + Math.hypot(path[j][0]-path[j-1][0], path[j][1]-path[j-1][1]));
     segs.push({a, b, route:b.route, walk:!b.route && a.st!==b.st, path, cum, len:cum[cum.length-1]});
   }
-  const first = new Map(); for (const r of rows) if (!first.has(r.st.id)) first.set(r.st.id, r.t);
+  const first = new Map(), firstRow = new Map(); for (const r of rows) if (!first.has(r.st.id)){ first.set(r.st.id, r.t); firstRow.set(r.st.id, r); }
   for (const id of SIR) first.delete(id);
   const t0 = rows[0].t, t1 = rows[rows.length-1].t;
   const curve = [...first.values()].sort((x,y)=>x-y).map((t,i)=>[t-t0, i+1]);
-  return {name, rows, segs, first, t0, t1, curve};
+  return {name, rows, segs, first, firstRow, t0, t1, curve};
 }
 
 /* ---------- parsing input ---------- */
@@ -351,7 +359,15 @@ function fitRoute(){
   let a=[1e9,1e9,-1e9,-1e9]; for (const r of R.rows){const [x,y]=r.st.p; a=[Math.min(a[0],x),Math.min(a[1],y),Math.max(a[2],x),Math.max(a[3],y)];}
   const pw=(a[2]-a[0])*0.15+0.01, ph=(a[3]-a[1])*0.15+0.01; fit([a[0]-pw,a[1]-ph,a[2]+pw,a[3]+ph]);
 }
-const SOLNAME = `Best found: ${D.solution.stats.start_station} → ${D.solution.stats.end_station}`;
+const SOLS = D.solutions || {local: D.solution};
+let MODE = 'local';
+try { const m = localStorage.getItem('subway-mode'); if (m && SOLS[m]) MODE = m; } catch(e){}
+if (!SOLS.express) $('mode').querySelector('[value=express]').disabled = true;
+$('mode').value = MODE;
+const curSol = () => SOLS[MODE];
+const solName = () => `Best found (${MODE}): ${curSol().stats.start_station} → ${curSol().stats.end_station}`;
+function loadMode(){ $('paste').value = ''; load(solName(), curSol().rows, true, curSol()); lastStatus = null; loadStatus(); }
+$('mode').onchange = () => { MODE = $('mode').value; try { localStorage.setItem('subway-mode', MODE); } catch(e){} loadMode(); };
 const secs = v => v.split(':').reduce((a,x)=>a*60+ +x, 0);
 let ITIN = [], lastOn = -1;
 function bul(id){ const r = routeById[id]; const lab = id.replace('X','').replace('GS','S').replace('FS','S').replace('H','S'); return `<span class="bul" title="${r.name}" style="background:${r.c};color:${DARK_TEXT.has(id)?'#111':'#fff'}">${lab}</span>`; }
@@ -365,7 +381,7 @@ function renderSol(sol){
   $('splitkey').innerHTML = parts.map(p => `<span><i style="background:${p[2]}"></i>${p[0]} ${dur(p[1])}</span>`).join('');
   $('facts').innerHTML = [
     ['Total', `${dur(s.total_s)} (h:mm)`], ['Start', `${s.start_station}, ${hhmm(secs(s.start))}`], ['Finish', `${s.end_station}, ${hhmm(secs(s.end))}`],
-    ['Trains', `${s.rides} boardings`], ['Walks', `${s.walks} station-to-station`], ['Stations', `${s.stations} of ${TOTAL}`]
+    ['Rules', s.rules === 'express' ? 'Express: passing through counts' : 'Local: the train must stop'], ['Trains', `${s.rides} boardings`], ['Walks', `${s.walks} station-to-station`], ['Stations', `${s.stations} of ${TOTAL}${s.passed_only ? `, ${s.passed_only} only passed through` : ''}`]
   ].map(([a,b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
   $('itlabel').textContent = `Itinerary · ${sol.itin.length} legs`;
   ITIN = sol.itin.map(L => ({...L, s0: secs(L.t0)}));
@@ -380,8 +396,8 @@ function markLeg(){
   if (k>=0 && lis[k]){ lis[k].classList.add('on'); if (playing){ const box=$('itin'); const top = lis[k].offsetTop - box.offsetTop; if (top < box.scrollTop || top > box.scrollTop + box.clientHeight - 40) box.scrollTop = top - 60; } }
   lastOn = k;
 }
-const sampleCSV = () => 'stop_id,time,route\n' + D.solution.rows.map(r => `${r.stop_id},${r.time},${r.route}`).join('\n');
-$('loadSample').onclick = () => { $('paste').value = ''; load(SOLNAME, D.solution.rows, true, D.solution); };
+const sampleCSV = () => 'stop_id,time,route,pass\n' + curSol().rows.map(r => `${r.stop_id},${r.time},${r.route},${r.pass ? 1 : ''}`).join('\n');
+$('loadSample').onclick = loadMode;
 $('loadPaste').onclick = () => { if (!$('paste').value.trim()){ $('err').hidden=false; $('err').textContent='Paste a route first, or open a file.'; return; } try { load('Pasted route', parse($('paste').value)); } catch(e){ $('err').hidden=false; $('err').textContent = 'Could not read that input: ' + e.message; } };
 $('file').onchange = e => { const fl = e.target.files[0]; if (!fl) return; const rd = new FileReader(); rd.onload = () => { $('paste').value = rd.result; try { load(fl.name, parse(rd.result)); } catch(err){ $('err').hidden=false; $('err').textContent='Could not read that file: '+err.message; } }; rd.readAsText(fl); e.target.value=''; };
 $('copySample').onclick = () => { const txt = sampleCSV(); navigator.clipboard.writeText(txt).then(() => { $('copySample').textContent='Copied'; setTimeout(()=>$('copySample').textContent='Copy solved route CSV',1500); }).catch(() => { $('paste').value = txt; $('paste').focus(); $('paste').select(); }); };
@@ -513,7 +529,7 @@ function showStation(s){
   $('stname').textContent = s.n;
   $('stbul').innerHTML = s.r.map(id => { const r=routeById[id]; const lab = id.replace('X','').replace('GS','S').replace('FS','S').replace('H','S'); return `<span class="bul" title="${r.name}" style="background:${r.c};color:${DARK_TEXT.has(id)?'#111':'#fff'}">${lab}</span>`; }).join('');
   const vt = R && R.first.get(s.id);
-  $('stinfo').textContent = SIR.has(s.id) ? 'Staten Island Railway: not part of the challenge.' : !R ? '' : vt===undefined ? 'This route never reaches this station.' : vt<=now ? `First reached at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run.` : `Reached at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run.`;
+  $('stinfo').textContent = SIR.has(s.id) ? 'Staten Island Railway: not part of the challenge.' : !R ? '' : vt===undefined ? 'This route never reaches this station.' : (() => { const fr = R.firstRow.get(s.id), how = fr && fr.pass ? `Passed through without stopping on the ${fr.route.replace('X','')}` : 'Reached'; return vt<=now ? `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run.` : `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run (not yet).`; })();
 }
 
 /* ---------- live service status (status.json is written by the scheduled GitHub Action) ---------- */
@@ -544,13 +560,14 @@ function renderStatus(s){
   }
   box.innerHTML = html; box.hidden = false;
 }
+let lastStatus = null;
 async function loadStatus(){
-  try { const r = await fetch('status.json?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) throw new Error(r.status); renderStatus(await r.json()); }
-  catch(e){ /* no status file here (e.g. not the GitHub Pages copy): keep the banner hidden */ }
+  try { const r = await fetch((MODE === 'express' ? 'status_express.json' : 'status.json') + '?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) throw new Error(r.status); renderStatus(await r.json()); }
+  catch(e){ $('status').hidden = true; /* no status file here (e.g. not the GitHub Pages copy) */ }
 }
 loadStatus(); setInterval(loadStatus, 5*60*1000);
 
 /* ---------- boot ---------- */
-new ResizeObserver(() => { const had = W; resize(); if (!had){ load(SOLNAME, D.solution.rows, true, D.solution); } }).observe(cv);
+new ResizeObserver(() => { const had = W; resize(); if (!had){ loadMode(); } }).observe(cv);
 })();
 </script>

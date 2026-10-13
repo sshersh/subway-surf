@@ -1,6 +1,6 @@
 """Embed map data + a solved route into the viewer template as a standalone page.
 
-usage: python3 viewer/build.py <data.json from prep.py> <route.json from solver/export.py> <out.html>
+usage: python3 viewer/build.py <data.json from prep.py> <local route.json> <out.html> [<express route.json>]
 """
 import json, sys, os
 
@@ -11,7 +11,9 @@ HEAD = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '</head><body>')
 data_path, route_path, out = sys.argv[1:4]
 d = json.load(open(data_path)); d.pop("sample", None)
-d["solution"] = json.load(open(route_path))
+d["solutions"] = {"local": json.load(open(route_path))}
+if len(sys.argv) > 4:
+    d["solutions"]["express"] = json.load(open(sys.argv[4]))
 tpl = open(os.path.join(os.path.dirname(__file__), "template.html")).read()
 page = tpl.replace("__DATA__", json.dumps(d, separators=(",", ":")).replace("</", "<\\/"))
 open(out, "w").write(HEAD + page + "</body></html>")

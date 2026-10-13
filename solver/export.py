@@ -5,7 +5,16 @@ from engine import Engine
 
 E = Engine("model"); m = E.m; meta = E.meta
 sol = np.load(sys.argv[1]).astype(np.int64)
-if sol.ndim == 2:   # line-aware solution [order, okey, t0]
+EXPRESS = "--express" in sys.argv     # passing through a station counts (needs model_pass.npz)
+PP = None
+if EXPRESS:
+    from expr import FastX, recordx
+    F = FastX(); t0, order = int(sol[0]), sol[1:]
+    score = F.full(order, t0)
+    end, first, nv, legs = recordx(F, order, t0)
+    assert end - first == score, (end - first, score)
+    PP = F.pp
+elif sol.ndim == 2:   # line-aware solution [order, okey, t0]
     from fast2 import Fast, record, sanitize
     F = Fast(); order, okey, t0 = sol[0], sanitize(F, sol[0], sol[1]), int(sol[2][0])
     score = F.full(order, okey, t0)
@@ -44,6 +53,13 @@ for b, e, w in legs:
     visited.setdefault(int(dep_s[b]), int(dep_t[b]))
     c = b; nstops = 0; new = 0
     while True:
+        if PP is not None:   # stations this hop passes without stopping
+            plist = PP[1][PP[0][c]:PP[0][c + 1]]
+            for i, p in enumerate(plist):
+                tp = int(dep_t[c] + (arr_t[c] - dep_t[c]) * (i + 1) / (len(plist) + 1))
+                if int(p) not in visited: new += 1
+                visited.setdefault(int(p), tp)
+                rows.append({"stop_id": st[int(p)], "time": hms(tp), "route": r, "pass": True})
         s2 = int(arr_s[c]); nstops += 1
         if s2 not in visited: new += 1
         visited.setdefault(s2, int(arr_t[c]))
@@ -67,7 +83,8 @@ total = last_new - first
 k = max(i for i, x in enumerate(times) if x <= last_new)
 rows = rows[:k + 1]
 nride = sum(1 for L in itin if L["kind"] == "ride")
-stats = {"total_s": int(total), "start": hms(int(first)), "end": hms(int(last_new)), "stations": len(visited),
+stats = {"total_s": int(total), "start": hms(int(first)), "end": hms(int(last_new)), "stations": len(visited), "rules": "express" if EXPRESS else "local",
+         "passed_only": len(set(r["stop_id"] for r in rows if r.get("pass")) - set(r["stop_id"] for r in rows if not r.get("pass"))),
          "ride_s": ride_s, "walk_s": walk_s, "wait_s": int(total) - ride_s - walk_s, "rides": nride,
          "walks": sum(1 for L in itin if L["kind"] == "walk"), "start_station": names[int(order[0])],
          "end_station": names[max(visited, key=visited.get)]}
