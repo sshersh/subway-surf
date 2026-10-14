@@ -92,6 +92,12 @@ python3 ends.py E_gseed.npy 1 18 E_sa.npy 120 2 --end 154 [--express]
 python3 export.py E_sa.npy trial.json --end 154 [--express]
 ```
 
+## Branch `headway-model`: ½-headway model, real-time headways, Christofides
+
+- `headways/headways.py` computes hourly average headways and expected waits per line, direction and station. It works from the static GTFS (`scheduled_headways`), from subwaydata.nyc observed arrivals built from the MTA GTFS-realtime feeds (`observed_headways`), or from a live GTFS-realtime snapshot (`live_headways`). It also compares schedule against reality (`compare`, `summarize`).
+- `.github/workflows/headways.yml` runs `headways/compare_week.py`. It downloads the last 7 days of actual service, compares it with the schedule, and commits `headways/results/report.md`. GitHub runs it because the data host isn't reachable from the solver's environment.
+- `headways/simple_model.py` is the Trail of Bits-style model: travel time plus transfer time plus ½ the hourly average headway, solved with Christofides, either directed or undirected. Results are in `headways/results/christofides.md`.
+
 ## Run log
 
 Every solver run worth keeping goes in `results/runs/`. Each route is saved as `<id>.json`, and `index.json` lists them with their rules, time, method and transfer assumptions. To log a run:

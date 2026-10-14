@@ -1,0 +1,32 @@
+{
+ "cx_express_undirected_sched": {
+  "expected_h": 20.18,
+  "timetable_h": 25.97,
+  "start": 7.333333333333333
+ },
+ "cx_express_undirected_obs": {
+  "expected_h": 20.31,
+  "timetable_h": 25.97,
+  "start": 7.333333333333333
+ },
+ "cx_express_undirected_allday": {
+  "expected_h": 21.17,
+  "timetable_h": 26.27,
+  "start": 14.583333333333334
+ },
+ "cx_express_directed_sched": {
+  "expected_h": 23.85,
+  "timetable_h": 25.66,
+  "start": 14.75
+ },
+ "cx_express_directed_obs": {
+  "expected_h": 24.41,
+  "timetable_h": 25.38,
+  "start": 14.916666666666666
+ },
+ "cx_local_directed_sched": {
+  "expected_h": 25.26,
+  "timetable_h": 25.99,
+  "start": 5.333333333333333
+ }
+}
