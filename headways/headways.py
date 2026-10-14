@@ -179,3 +179,72 @@ def summarize(rows, by):
                   "sched_half_hw_min": round(sum(r["sched_mean"] / 2 for r in v) / len(v), 2),
                   "obs_wait_min": round(sum(r["obs_wait"] for r in v) / len(v), 2)}
     return res
+
+
+# ---------------------------------------------------------------- timetable adherence
+def rt_key(trip_id):
+    """NYCT trip key shared by static and realtime ids: static 'ASP26GEN-1038-Sunday-00_000600_1..S03R'
+    and realtime '000600_1..S03R' both give '000600_1..S03R'."""
+    last = trip_id.rsplit("-", 1)[-1]
+    parts = last.split("_")
+    return "_".join(parts[-2:]) if len(parts) >= 2 else last
+
+
+class Schedule:
+    """Scheduled stop times indexed by (day_type, trip key) -> {stop_id: seconds after midnight}."""
+    def __init__(self, gtfs_dir):
+        cal = {c["service_id"]: c for c in _read(gtfs_dir, "calendar")}
+        def dts(sid):
+            c = cal.get(sid, {})
+            return [d for d, col in (("weekday", "monday"), ("saturday", "saturday"), ("sunday", "sunday")) if c.get(col) == "1"]
+        trips = {t["trip_id"]: (rt_key(t["trip_id"]), dts(t["service_id"])) for t in _read(gtfs_dir, "trips")}
+        self.times = collections.defaultdict(dict)
+        for r in _read(gtfs_dir, "stop_times"):
+            k = trips.get(r["trip_id"])
+            if not k: continue
+            h, m, s = map(int, (r["departure_time"] or r["arrival_time"]).split(":"))
+            for dt in k[1]: self.times[(dt, k[0])][r["stop_id"]] = h * 3600 + m * 60 + s
+
+
+def adherence(schedule, stop_times_csv, trips_csv, out=None):
+    """Departure-time deviations (observed - scheduled, seconds) for one subwaydata.nyc day.
+    Appends (line, hour, deviation_s) to out; returns (out, matched_trips, total_trips)."""
+    out = [] if out is None else out
+    def rows(x):
+        f = open(x, newline="") if isinstance(x, str) and os.path.exists(x) else io.StringIO(x)
+        return csv.DictReader(f)
+    trip = {}; total = 0
+    for t in rows(trips_csv):
+        if t["route_id"] in ("SI", ""): continue
+        total += 1
+        start = datetime.fromtimestamp(int(t["start_time"]), ET)
+        sched = schedule.times.get((day_type_of(start.date()), rt_key(t["trip_id"])))
+        if sched:
+            midnight = datetime(start.year, start.month, start.day, tzinfo=ET).timestamp()
+            trip[t["trip_uid"]] = (line_of(t["route_id"]), sched, midnight)
+    for r in rows(stop_times_csv):
+        tr = trip.get(r["trip_uid"])
+        if tr is None or not r["marked_past"]: continue
+        ts = r["departure_time"] or r["arrival_time"]
+        sch = tr[1].get(r["stop_id"])
+        if not ts or sch is None: continue
+        dev = int(ts) - (tr[2] + sch)
+        if dev > 43200: dev -= 86400          # service-day wraparound
+        elif dev < -43200: dev += 86400
+        if abs(dev) <= 3 * 3600:
+            out.append((tr[0], datetime.fromtimestamp(int(ts), ET).hour, dev))
+    return out, len(trip), total
+
+
+def adherence_summary(devs, by_index=0):
+    """Per line (by_index=0) or hour (1): count, median |deviation|, share within 1/2/5 min, median
+    deviation (positive = late), share more than 5 min late."""
+    g = collections.defaultdict(list)
+    for d in devs: g[d[by_index]].append(d[2])
+    res = {}
+    for k, v in g.items():
+        a = sorted(abs(x) for x in v); s = sorted(v); n = len(v)
+        res[k] = {"n": n, "median_abs_min": round(a[n // 2] / 60, 2), "median_min": round(s[n // 2] / 60, 2),
+                  "within_1": round(sum(1 for x in a if x <= 60) / n, 3), "within_2": round(sum(1 for x in a if x <= 120) / n, 3),
+                  "within_5": round(sum(1 for x in a if x <= 300) / n, 3), "late_5": round(sum(1 for x in v if x > 300) / n, 3)}
+    return res

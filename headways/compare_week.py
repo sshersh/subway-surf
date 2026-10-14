@@ -11,7 +11,7 @@ Writes to --out:
 """
 import argparse, io, json, os, sys, tarfile, urllib.request, zipfile, collections, statistics
 sys.path.insert(0, os.path.dirname(__file__))
-from headways import scheduled_headways, observed_headways, to_json, compare, summarize
+from headways import scheduled_headways, observed_headways, to_json, compare, summarize, Schedule, adherence, adherence_summary
 
 META = "https://data.subwaydata.nyc/subwaydatanyc_metadata.json"
 GTFS = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
@@ -36,6 +36,7 @@ meta = json.loads(get(META))
 days = sorted(meta["ProcessedDays"], key=lambda d: d["Day"])[-a.days:]
 obs = {}
 used = []
+sched_tt = Schedule(a.gtfs_dir); devs = []; match = []
 for d in days:
     path = d.get("Csv", {}).get("Path") or f"subwaydatanyc_{d['Day']}_csv.tar.xz"
     for url in (f"https://data.subwaydata.nyc/{path}", f"https://subwaydata.nyc/data/{os.path.basename(path)}"):
@@ -48,7 +49,10 @@ for d in days:
     files = {os.path.basename(m.name): m for m in tf.getmembers() if m.isfile()}
     trips = next(v for k, v in files.items() if k.endswith("trips.csv"))
     st = next(v for k, v in files.items() if k.endswith("stop_times.csv"))
-    observed_headways(tf.extractfile(st).read().decode(), tf.extractfile(trips).read().decode(), obs)
+    st_txt, tr_txt = tf.extractfile(st).read().decode(), tf.extractfile(trips).read().decode()
+    observed_headways(st_txt, tr_txt, obs)
+    _, matched, total = adherence(sched_tt, st_txt, tr_txt, devs); match.append((d["Day"], matched, total))
+    if d is days[-1]: print("sample realtime trip ids:", [l.split(",")[1] for l in tr_txt.splitlines()[1:6]])
     used.append(d["Day"]); print("processed", d["Day"], len(blob) // 1_000_000, "MB", flush=True)
 
 sched = {}
@@ -85,5 +89,20 @@ for r in rows: byh[r["hour"]].append(r)
 for h in sorted(byh):
     v = byh[h]; rr = sorted(r["obs_mean"] / r["sched_mean"] for r in v)
     L.append(f"| {h:02d}:00 | {len(v)} | {rr[len(rr)//2]:.2f} | {statistics.mean(r['sched_mean']/2 for r in v):.1f} | {statistics.mean(r['obs_wait'] for r in v):.1f} |")
+# timetable adherence: do trains leave when the timetable says?
+if devs:
+    al = adherence_summary(devs, 0); ah = adherence_summary(devs, 1); aa = adherence_summary([("all",) + d[1:] for d in devs], 0)["all"]
+    json.dump({"by_line": al, "by_hour": {str(k): v for k, v in ah.items()}, "all": aa,
+               "matched_trips": match}, open(os.path.join(a.out, "adherence.json"), "w"), indent=1)
+    L += ["", "## Timetable adherence: actual vs scheduled departure times", "",
+          f"Trips matched to their scheduled trip by MTA trip id: " + ", ".join(f"{d} {m}/{t} ({m/max(t,1):.0%})" for d, m, t in match), "",
+          f"Across {aa['n']:,} matched departures: median deviation {aa['median_min']:+.1f} min (positive = late), "
+          f"median |deviation| **{aa['median_abs_min']:.1f} min**; within 1 min **{aa['within_1']:.0%}**, within 2 min {aa['within_2']:.0%}, "
+          f"within 5 min {aa['within_5']:.0%}; more than 5 min late {aa['late_5']:.0%}.", "",
+          "| Line | Departures | Median deviation | Median abs deviation | Within 1 min | Within 2 min | Within 5 min | >5 min late |", "|---|---|---|---|---|---|---|---|"]
+    for k, v in sorted(al.items(), key=lambda kv: -kv[1]["median_abs_min"]):
+        L.append(f"| {k} | {v['n']:,} | {v['median_min']:+.1f} | {v['median_abs_min']:.1f} | {v['within_1']:.0%} | {v['within_2']:.0%} | {v['within_5']:.0%} | {v['late_5']:.0%} |")
+    L += ["", "| Hour | Departures | Median abs deviation | Within 2 min | >5 min late |", "|---|---|---|---|---|"]
+    for k in sorted(ah): v = ah[k]; L.append(f"| {k:02d}:00 | {v['n']:,} | {v['median_abs_min']:.1f} | {v['within_2']:.0%} | {v['late_5']:.0%} |")
 open(os.path.join(a.out, "report.md"), "w").write("\n".join(L) + "\n")
 print("\n".join(L[:12]))
