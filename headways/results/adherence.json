@@ -1,0 +1,475 @@
+{
+ "by_line": {
+  "5": {
+   "n": 42903,
+   "median_abs_min": 1.35,
+   "median_min": -0.18,
+   "within_1": 0.414,
+   "within_2": 0.632,
+   "within_5": 0.894,
+   "late_5": 0.075
+  },
+  "3": {
+   "n": 56419,
+   "median_abs_min": 1.0,
+   "median_min": 0.0,
+   "within_1": 0.505,
+   "within_2": 0.727,
+   "within_5": 0.95,
+   "late_5": 0.042
+  },
+  "1": {
+   "n": 86019,
+   "median_abs_min": 0.58,
+   "median_min": 0.12,
+   "within_1": 0.674,
+   "within_2": 0.833,
+   "within_5": 0.965,
+   "late_5": 0.035
+  },
+  "4": {
+   "n": 51895,
+   "median_abs_min": 1.1,
+   "median_min": -0.12,
+   "within_1": 0.471,
+   "within_2": 0.708,
+   "within_5": 0.931,
+   "late_5": 0.057
+  },
+  "2": {
+   "n": 91627,
+   "median_abs_min": 1.42,
+   "median_min": 0.0,
+   "within_1": 0.393,
+   "within_2": 0.621,
+   "within_5": 0.883,
+   "late_5": 0.095
+  },
+  "6": {
+   "n": 62635,
+   "median_abs_min": 0.93,
+   "median_min": 0.53,
+   "within_1": 0.524,
+   "within_2": 0.706,
+   "within_5": 0.908,
+   "late_5": 0.091
+  },
+  "GS": {
+   "n": 5659,
+   "median_abs_min": 0.0,
+   "median_min": 0.0,
+   "within_1": 0.989,
+   "within_2": 0.997,
+   "within_5": 0.997,
+   "late_5": 0.0
+  },
+  "A": {
+   "n": 63137,
+   "median_abs_min": 1.92,
+   "median_min": 1.2,
+   "within_1": 0.319,
+   "within_2": 0.515,
+   "within_5": 0.78,
+   "late_5": 0.209
+  },
+  "H": {
+   "n": 5315,
+   "median_abs_min": 1.08,
+   "median_min": 0.02,
+   "within_1": 0.484,
+   "within_2": 0.68,
+   "within_5": 0.92,
+   "late_5": 0.077
+  },
+  "E": {
+   "n": 44588,
+   "median_abs_min": 1.58,
+   "median_min": 0.7,
+   "within_1": 0.363,
+   "within_2": 0.576,
+   "within_5": 0.839,
+   "late_5": 0.142
+  },
+  "C": {
+   "n": 46118,
+   "median_abs_min": 1.37,
+   "median_min": 0.6,
+   "within_1": 0.405,
+   "within_2": 0.633,
+   "within_5": 0.889,
+   "late_5": 0.102
+  },
+  "F": {
+   "n": 61942,
+   "median_abs_min": 1.88,
+   "median_min": 1.03,
+   "within_1": 0.319,
+   "within_2": 0.522,
+   "within_5": 0.781,
+   "late_5": 0.208
+  },
+  "FS": {
+   "n": 4532,
+   "median_abs_min": 0.87,
+   "median_min": 0.43,
+   "within_1": 0.531,
+   "within_2": 0.756,
+   "within_5": 0.92,
+   "late_5": 0.08
+  },
+  "M": {
+   "n": 32031,
+   "median_abs_min": 1.53,
+   "median_min": 0.78,
+   "within_1": 0.362,
+   "within_2": 0.596,
+   "within_5": 0.86,
+   "late_5": 0.135
+  },
+  "D": {
+   "n": 46771,
+   "median_abs_min": 0.97,
+   "median_min": 0.0,
+   "within_1": 0.512,
+   "within_2": 0.66,
+   "within_5": 0.866,
+   "late_5": 0.118
+  },
+  "B": {
+   "n": 31841,
+   "median_abs_min": 1.72,
+   "median_min": 0.45,
+   "within_1": 0.336,
+   "within_2": 0.554,
+   "within_5": 0.858,
+   "late_5": 0.127
+  },
+  "G": {
+   "n": 31748,
+   "median_abs_min": 1.5,
+   "median_min": 1.25,
+   "within_1": 0.379,
+   "within_2": 0.605,
+   "within_5": 0.882,
+   "late_5": 0.116
+  },
+  "J": {
+   "n": 45974,
+   "median_abs_min": 1.3,
+   "median_min": 0.78,
+   "within_1": 0.413,
+   "within_2": 0.658,
+   "within_5": 0.916,
+   "late_5": 0.083
+  },
+  "Z": {
+   "n": 1197,
+   "median_abs_min": 1.58,
+   "median_min": 1.2,
+   "within_1": 0.364,
+   "within_2": 0.588,
+   "within_5": 0.889,
+   "late_5": 0.111
+  },
+  "Q": {
+   "n": 36696,
+   "median_abs_min": 1.87,
+   "median_min": 1.6,
+   "within_1": 0.32,
+   "within_2": 0.52,
+   "within_5": 0.806,
+   "late_5": 0.192
+  },
+  "R": {
+   "n": 67713,
+   "median_abs_min": 1.53,
+   "median_min": 0.67,
+   "within_1": 0.376,
+   "within_2": 0.589,
+   "within_5": 0.849,
+   "late_5": 0.141
+  },
+  "N": {
+   "n": 43932,
+   "median_abs_min": 2.02,
+   "median_min": 1.58,
+   "within_1": 0.289,
+   "within_2": 0.5,
+   "within_5": 0.784,
+   "late_5": 0.21
+  },
+  "W": {
+   "n": 17719,
+   "median_abs_min": 1.67,
+   "median_min": 1.25,
+   "within_1": 0.337,
+   "within_2": 0.567,
+   "within_5": 0.866,
+   "late_5": 0.13
+  }
+ },
+ "by_hour": {
+  "4": {
+   "n": 13326,
+   "median_abs_min": 1.4,
+   "median_min": 0.5,
+   "within_1": 0.41,
+   "within_2": 0.609,
+   "within_5": 0.831,
+   "late_5": 0.151
+  },
+  "5": {
+   "n": 23537,
+   "median_abs_min": 1.08,
+   "median_min": 0.27,
+   "within_1": 0.48,
+   "within_2": 0.697,
+   "within_5": 0.907,
+   "late_5": 0.084
+  },
+  "6": {
+   "n": 40796,
+   "median_abs_min": 1.13,
+   "median_min": 0.2,
+   "within_1": 0.46,
+   "within_2": 0.684,
+   "within_5": 0.911,
+   "late_5": 0.076
+  },
+  "7": {
+   "n": 54828,
+   "median_abs_min": 1.15,
+   "median_min": 0.12,
+   "within_1": 0.46,
+   "within_2": 0.68,
+   "within_5": 0.916,
+   "late_5": 0.07
+  },
+  "8": {
+   "n": 61331,
+   "median_abs_min": 1.35,
+   "median_min": 0.48,
+   "within_1": 0.41,
+   "within_2": 0.63,
+   "within_5": 0.884,
+   "late_5": 0.107
+  },
+  "9": {
+   "n": 57068,
+   "median_abs_min": 1.38,
+   "median_min": 0.45,
+   "within_1": 0.409,
+   "within_2": 0.618,
+   "within_5": 0.864,
+   "late_5": 0.128
+  },
+  "10": {
+   "n": 49104,
+   "median_abs_min": 1.37,
+   "median_min": 0.28,
+   "within_1": 0.419,
+   "within_2": 0.617,
+   "within_5": 0.865,
+   "late_5": 0.125
+  },
+  "11": {
+   "n": 46780,
+   "median_abs_min": 1.47,
+   "median_min": 0.6,
+   "within_1": 0.397,
+   "within_2": 0.587,
+   "within_5": 0.831,
+   "late_5": 0.154
+  },
+  "12": {
+   "n": 47496,
+   "median_abs_min": 1.5,
+   "median_min": 0.7,
+   "within_1": 0.394,
+   "within_2": 0.583,
+   "within_5": 0.82,
+   "late_5": 0.167
+  },
+  "13": {
+   "n": 47565,
+   "median_abs_min": 1.38,
+   "median_min": 0.58,
+   "within_1": 0.415,
+   "within_2": 0.605,
+   "within_5": 0.852,
+   "late_5": 0.14
+  },
+  "14": {
+   "n": 50047,
+   "median_abs_min": 1.3,
+   "median_min": 0.45,
+   "within_1": 0.428,
+   "within_2": 0.629,
+   "within_5": 0.874,
+   "late_5": 0.117
+  },
+  "15": {
+   "n": 54663,
+   "median_abs_min": 1.28,
+   "median_min": 0.45,
+   "within_1": 0.426,
+   "within_2": 0.639,
+   "within_5": 0.878,
+   "late_5": 0.116
+  },
+  "16": {
+   "n": 60620,
+   "median_abs_min": 1.2,
+   "median_min": 0.33,
+   "within_1": 0.447,
+   "within_2": 0.66,
+   "within_5": 0.895,
+   "late_5": 0.097
+  },
+  "17": {
+   "n": 60371,
+   "median_abs_min": 1.25,
+   "median_min": 0.35,
+   "within_1": 0.439,
+   "within_2": 0.652,
+   "within_5": 0.9,
+   "late_5": 0.091
+  },
+  "18": {
+   "n": 58951,
+   "median_abs_min": 1.3,
+   "median_min": 0.47,
+   "within_1": 0.425,
+   "within_2": 0.632,
+   "within_5": 0.882,
+   "late_5": 0.108
+  },
+  "19": {
+   "n": 56634,
+   "median_abs_min": 1.25,
+   "median_min": 0.42,
+   "within_1": 0.438,
+   "within_2": 0.65,
+   "within_5": 0.886,
+   "late_5": 0.106
+  },
+  "20": {
+   "n": 51966,
+   "median_abs_min": 1.18,
+   "median_min": 0.2,
+   "within_1": 0.457,
+   "within_2": 0.666,
+   "within_5": 0.904,
+   "late_5": 0.084
+  },
+  "21": {
+   "n": 44366,
+   "median_abs_min": 1.23,
+   "median_min": 0.25,
+   "within_1": 0.436,
+   "within_2": 0.663,
+   "within_5": 0.901,
+   "late_5": 0.085
+  },
+  "22": {
+   "n": 33793,
+   "median_abs_min": 1.25,
+   "median_min": 0.37,
+   "within_1": 0.44,
+   "within_2": 0.648,
+   "within_5": 0.891,
+   "late_5": 0.099
+  },
+  "23": {
+   "n": 24757,
+   "median_abs_min": 1.52,
+   "median_min": 0.77,
+   "within_1": 0.383,
+   "within_2": 0.582,
+   "within_5": 0.854,
+   "late_5": 0.133
+  },
+  "0": {
+   "n": 13522,
+   "median_abs_min": 1.9,
+   "median_min": 1.22,
+   "within_1": 0.334,
+   "within_2": 0.512,
+   "within_5": 0.77,
+   "late_5": 0.221
+  },
+  "1": {
+   "n": 8731,
+   "median_abs_min": 2.0,
+   "median_min": 1.43,
+   "within_1": 0.333,
+   "within_2": 0.503,
+   "within_5": 0.738,
+   "late_5": 0.256
+  },
+  "2": {
+   "n": 8907,
+   "median_abs_min": 1.93,
+   "median_min": 1.62,
+   "within_1": 0.355,
+   "within_2": 0.509,
+   "within_5": 0.718,
+   "late_5": 0.277
+  },
+  "3": {
+   "n": 9252,
+   "median_abs_min": 1.82,
+   "median_min": 1.37,
+   "within_1": 0.356,
+   "within_2": 0.528,
+   "within_5": 0.756,
+   "late_5": 0.239
+  }
+ },
+ "all": {
+  "n": 978411,
+  "median_abs_min": 1.3,
+  "median_min": 0.43,
+  "within_1": 0.426,
+  "within_2": 0.632,
+  "within_5": 0.874,
+  "late_5": 0.116
+ },
+ "matched_trips": [
+  [
+   "2026-10-05",
+   6156,
+   8416
+  ],
+  [
+   "2026-10-06",
+   5790,
+   8161
+  ],
+  [
+   "2026-10-07",
+   5729,
+   8171
+  ],
+  [
+   "2026-10-08",
+   5958,
+   8287
+  ],
+  [
+   "2026-10-09",
+   5601,
+   8069
+  ],
+  [
+   "2026-10-10",
+   2938,
+   5833
+  ],
+  [
+   "2026-10-11",
+   2596,
+   5421
+  ]
+ ]
+}
