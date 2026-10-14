@@ -96,7 +96,10 @@ for s in range(n):
     for q in range(m["fp_ptr"][s], m["fp_ptr"][s + 1]):
         E.append((s, int(m["fp_to"][q]), float(m["fp_t"][q])))
 N = n + len(state)
-r, c, w = zip(*E)
+best = {}
+for u, x, wt in E:   # keep the cheapest of any parallel edges (csr_matrix would sum them)
+    if wt < best.get((u, x), 1e18): best[(u, x)] = wt
+r, c = zip(*best); w = list(best.values())
 G = csr_matrix((np.array(w) + 1e-3, (r, c)), shape=(N, N))
 nodes = sorted(state.values()); key_of = {v: k for k, v in state.items()}
 t = time.time()
