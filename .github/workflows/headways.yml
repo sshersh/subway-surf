@@ -1,0 +1,31 @@
+name: Headways vs schedule (last week)
+
+# Downloads the last 7 days of actual subway movements (subwaydata.nyc, built from the MTA
+# GTFS-realtime feeds), compares hourly headways with the static schedule, and commits the results
+# to headways/results on this branch.
+on:
+  push:
+    branches: [headway-model]
+    paths: ["headways/**.py", ".github/workflows/headways.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compare headways
+        run: python3 headways/compare_week.py --days 7 --out headways/results
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add headways/results
+          git commit -m "Headway comparison: $(date -u +%Y-%m-%d)" || echo "no changes"
+          git push
