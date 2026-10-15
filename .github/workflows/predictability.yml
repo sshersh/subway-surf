@@ -1,0 +1,41 @@
+name: Route predictability on real days
+
+# Replays each route on the last few weekdays of actual train movements (subwaydata.nyc, from the
+# MTA GTFS-realtime feeds) and on the static timetable, and commits the spread of finishing times
+# to headways/results/predictability.{json,md} on this branch.
+on:
+  push:
+    branches: [headway-model]
+    paths: ["headways/predictability.py", "headways/results/*_route.json", ".github/workflows/predictability.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy scipy numba
+      - name: Replay routes
+        run: |
+          R=()
+          for spec in "Annealed timetable local:results/best_route.json" \
+                      "Annealed timetable express:results/best_route_express.json" \
+                      "Directed headway model local:headways/results/directed_local_route.json" \
+                      "Directed headway model express:headways/results/directed_express_route.json"; do
+            [ -f "${spec#*:}" ] && R+=("$spec")
+          done
+          python3 headways/predictability.py --routes "${R[@]}" --days 5 --out headways/results
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add headways/results/predictability.*
+          git commit -m "Route predictability: $(date -u +%Y-%m-%d)" || echo "no changes"
+          git pull --rebase && git push

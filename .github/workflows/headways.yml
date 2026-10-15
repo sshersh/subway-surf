@@ -6,7 +6,7 @@ name: Headways vs schedule (last week)
 on:
   push:
     branches: [headway-model]
-    paths: ["headways/**.py", ".github/workflows/headways.yml"]
+    paths: ["headways/headways.py", "headways/compare_week.py", ".github/workflows/headways.yml"]
   workflow_dispatch:
 
 permissions:

@@ -6,11 +6,14 @@ Output (model.npz + model.json):
   change time per station, station list, trip -> route
 Two consecutive service days are included so a run can pass midnight.
 """
-import json, math, sys, collections
+import json, os, math, sys, collections
 import numpy as np
 
 SRC, OUT = sys.argv[1], sys.argv[2]
-L = lambda n: json.load(open(f"{SRC}/{n}.json"))
+def L(n):   # GTFS table from the JSON export (name.json) or the MTA's CSV feed (name.txt)
+    import csv
+    if os.path.exists(f"{SRC}/{n}.json"): return json.load(open(f"{SRC}/{n}.json"))
+    with open(f"{SRC}/{n}.txt", newline="", encoding="utf-8-sig") as f: return list(csv.DictReader(f))
 stops, trips, transfers = L("stops"), L("trips"), L("transfers")
 stop_times = L("stop_times")
 

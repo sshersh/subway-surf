@@ -8,7 +8,7 @@ there (headways.py: scheduled or observed). No timetable: this is an expected-ti
         [--express solver/model_pass.npz] [--undirected] [--headways observed_hourly.json] \
         [--start-hours 4 5 6 7 8] [--iters 5] --out headways/results/christofides.json
 """
-import argparse, json, sys, os, time, collections
+import argparse, json, sys, os, time, math, collections
 import numpy as np
 import networkx as nx
 from scipy.sparse import csr_matrix
@@ -118,39 +118,111 @@ def christofides_path(D):
     return cyc[k + 1:] + cyc[:k + 1]
 
 
+class Viterbi:
+    """Incremental expected-time evaluation of a station order for one cost matrix Ds."""
+    def __init__(self, Ds, cl, n):
+        self.Ds = Ds; self.idx = [np.where(cl == s)[0] for s in range(n)]
+        self.blocks = {}
+
+    def block(self, a, b):
+        k = (a, b)
+        if k not in self.blocks: self.blocks[k] = self.Ds[np.ix_(self.idx[a], self.idx[b])]
+        return self.blocks[k]
+
+    def run(self, order, accs=None, start=1):
+        """accs[i] = best cost of reaching each state of order[i]. Recompute from position `start`."""
+        if accs is None or start <= 0:
+            accs = [np.zeros(len(self.idx[order[0]]))]; start = 1
+        else:
+            accs = accs[:start]
+        acc = accs[-1]
+        for i in range(start, len(order)):
+            acc = (acc[:, None] + self.block(order[i - 1], order[i])).min(axis=0); accs.append(acc)
+        return float(accs[-1].min()), accs
+
+
+def polish(order, V, seconds, rng):
+    """Simulated annealing on the expected-time model (2-opt reversals and segment moves)."""
+    order = list(order); n = len(order)
+    cur, accs = V.run(order); best = (cur, order[:])
+    t_end = time.time() + seconds; t0 = time.time(); T_HI, T_LO = 120.0, 2.0
+    while time.time() < t_end:
+        T = T_HI * (T_LO / T_HI) ** ((time.time() - t0) / seconds)
+        if rng.random() < 0.5:
+            i = int(rng.integers(0, n - 2)); j = min(n, i + int(rng.integers(2, 80)))
+            o = order[:i] + order[i:j][::-1] + order[j:]; p = i
+        else:
+            L = int(rng.integers(1, 20)); i = int(rng.integers(0, n - L)); seg = order[i:i + L]
+            rest = order[:i] + order[i + L:]; j = int(rng.integers(0, len(rest) + 1))
+            o = rest[:j] + seg + rest[j:]; p = min(i, j)
+        c, a2 = V.run(o, accs, p)   # p == 0 recomputes from scratch
+        if c <= cur or rng.random() < math.exp((cur - c) / T):
+            order, cur, accs = o, c, a2
+            if c < best[0]: best = (c, order[:])
+    return best
+
+
+def timings(order, V):
+    """Expected offset (s) at each station of the order."""
+    _, accs = V.run(order)
+    return [float(a.min()) for a in accs]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="solver/model"); ap.add_argument("--gtfs", required=True)
     ap.add_argument("--express"); ap.add_argument("--undirected", action="store_true")
-    ap.add_argument("--headways"); ap.add_argument("--start-hours", type=float, nargs="+", default=[4, 5, 6, 7, 8])
-    ap.add_argument("--iters", type=int, default=5); ap.add_argument("--out", required=True)
+    ap.add_argument("--headways"); ap.add_argument("--use", choices=["mean", "wait"], default="mean",
+                    help="price each boarding at half the hourly mean headway (mean) or the observed expected wait (wait)")
+    ap.add_argument("--start-hours", type=float, nargs="+", default=[4, 5, 6, 7, 8])
+    ap.add_argument("--iters", type=int, default=4); ap.add_argument("--polish", type=float, default=0,
+                    help="seconds of local search on the model after each Christofides tour")
+    ap.add_argument("--seed", type=int, default=1); ap.add_argument("--out", required=True)
+    ap.add_argument("--replay-out", help="also replay the tour on the real timetable and save [t0, order] "
+                    "(.npy, for solver/export.py)")
     a = ap.parse_args()
     hw = json.load(open(a.headways)) if a.headways else to_json(scheduled_headways(a.gtfs, "weekday"))
-    M = Simple(a.model, hw, a.express, a.undirected); n = M.n
+    if a.use == "wait":   # half_headway(use='mean') returns mean/2: feed it 2 x expected wait instead
+        hw = {k: (dict(v, mean=2 * v["wait"]) if v else v) for k, v in hw.items()}
+    M = Simple(a.model, hw, a.express, a.undirected); n = M.n; rng = np.random.default_rng(a.seed)
     best = None; log = []
     for h0 in a.start_hours:
-        hours = np.full(n, h0 * 3600.0)
-        order = None
+        hours = np.full(n, h0 * 3600.0); carry = None
         for it in range(a.iters):
-            t = time.time(); Ds, cl = M.build(hours); D = M.station_matrix(Ds, cl, n)
-            cand = christofides_path(D)
-            # Christofides gives a loop opened at its longest leg; try both directions
-            evals = [(M.expected(o, Ds, cl), o) for o in (cand, cand[::-1])]
-            (tot, ts), o = min(evals, key=lambda x: x[0][0])
-            if order is None or tot < best_iter[0]: best_iter = (tot, o, ts)
-            order = o
-            hours = np.zeros(n)
-            for s, dt in zip(o, ts): hours[s] = (h0 * 3600 + dt) % DAY
+            t = time.time(); Ds, cl = M.build(hours); V = Viterbi(Ds, cl, n)
+            cand = christofides_path(M.station_matrix(Ds, cl, n))
+            options = [cand, cand[::-1]] + ([carry] if carry else [])
+            order = min(options, key=lambda o: V.run(o)[0])
+            if a.polish: _, order = polish(order, V, a.polish, rng)
+            # price the tour at its own times of day (two fixed-point steps)
+            for _ in range(2):
+                ts = timings(order, V); hours = np.full(n, h0 * 3600.0)
+                for s, dt in zip(order, ts): hours[s] = (h0 * 3600 + dt) % DAY
+                Ds, cl = M.build(hours); V = Viterbi(Ds, cl, n)
+            tot, _ = V.run(order); ts = timings(order, V); carry = order
             log.append({"start_hour": h0, "iter": it, "expected_h": round(tot / 3600, 3), "secs": round(time.time() - t, 1)})
-            print(f"start {h0:4.1f}h iter {it}: expected {tot/3600:6.2f} h ({time.time()-t:.1f}s)", flush=True)
-        if best is None or best_iter[0] < best[0]: best = best_iter + (h0,)
+            print(f"start {h0:4.1f}h iter {it}: expected {tot/3600:6.2f} h, priced at its own times ({time.time()-t:.0f}s)", flush=True)
+            if best is None or tot < best[0]: best = (tot, order, ts, h0)
     tot, order, ts, h0 = best
     json.dump({"expected_s": int(tot), "start_hour": h0, "order": [int(s) for s in order],
                "stations": [M.st[s] for s in order], "offsets_s": [int(x) for x in ts],
-               "settings": {"express": bool(a.express), "undirected": a.undirected,
+               "settings": {"express": bool(a.express), "undirected": a.undirected, "use": a.use, "polish_s": a.polish,
                             "headways": a.headways or "scheduled (static GTFS)"}, "log": log},
               open(a.out, "w"), indent=1)
     print(f"best expected {tot/3600:.2f} h starting {h0}h -> {a.out}")
+    if a.replay_out:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "solver"))
+        if a.express:
+            from expr import FastX; F = FastX(a.model)
+        else:
+            from fast import Fast; F = Fast(a.model)
+        o = np.array(order, dtype=np.int64); best_r = (float("inf"), 0, o)
+        for oo in (o, o[::-1].copy()):
+            for t0 in range(int(h0 * 3600) - 3600, int(h0 * 3600) + 3601, 300):
+                c = F.full(oo, t0)
+                if c < best_r[0]: best_r = (c, t0, oo)
+        np.save(a.replay_out, np.concatenate([[best_r[1]], best_r[2]]))
+        print(f"same order on the static timetable: {best_r[0]/3600:.2f} h (start {best_r[1]/3600:.2f}h) -> {a.replay_out}")
 
 
 if __name__ == "__main__":

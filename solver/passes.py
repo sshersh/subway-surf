@@ -7,12 +7,15 @@ connect A and B (and stations on lines that merely cross under or over).
 
     python3 passes.py <gtfs_json_dir> model     -> model_pass.npz (CSR per connection)
 """
-import sys, json, math, collections
+import sys, os, json, math, collections
 import numpy as np
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 PASS_TOL = 120.0   # m from the express track shape
-L = lambda n: json.load(open(f"{SRC}/{n}.json"))
+def L(n):   # GTFS table from the JSON export (name.json) or the MTA's CSV feed (name.txt)
+    import csv
+    if os.path.exists(f"{SRC}/{n}.json"): return json.load(open(f"{SRC}/{n}.json"))
+    with open(f"{SRC}/{n}.txt", newline="", encoding="utf-8-sig") as f: return list(csv.DictReader(f))
 stops = {s["stop_id"]: s for s in L("stops")}
 trips = {t["trip_id"]: t for t in L("trips")}
 meta = json.load(open(OUT + ".json")); m = np.load(OUT + ".npz")
