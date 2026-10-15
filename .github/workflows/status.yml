@@ -22,23 +22,19 @@ permissions:
   pages: write
   id-token: write
 
-# queue rather than cancel, so a run that is planning finishes and deploys
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 env:
   FEED: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json
   PLAN_MINUTES: "10"   # annealing time; local and express run side by side
   PLAN_PROCS: "2"      # parallel annealing runs per rules (runners have 4 cores on public repos)
 
 jobs:
-  deploy:
+  # Planning has its own queue, so a deploy elsewhere in the "pages" group can't cancel it mid-solve.
+  plan:
     runs-on: ubuntu-latest
     timeout-minutes: 50
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: plan-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -140,5 +136,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+  deploy:
+    needs: plan
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
