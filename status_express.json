@@ -1,0 +1,282 @@
+{
+ "checked_at": 1792094602,
+ "feed_timestamp": 1792094377,
+ "verdict": "blocked",
+ "now": [
+  {
+   "id": "lmm:planned_work:35713",
+   "kind": "blocked",
+   "lines": [
+    "G"
+   ],
+   "text": "In Brooklyn, some Church Av-bound [G] trains will skip 4 Av/9 St, 15 St-Prospect Park, and Fort Hamilton Pkwy",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "4 Av-9 St",
+    "15 St-Prospect Park"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "33:34",
+    "33:40"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:31498",
+   "kind": "blocked",
+   "lines": [
+    "7"
+   ],
+   "text": "In Queens, Flushing-bound [7] skips 52 St and 69 St All trains at Woodside-61 St board from the Manhattan-bound platform",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "69 St",
+    "52 St"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "22:51",
+    "22:56"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:29949",
+   "kind": "blocked",
+   "lines": [
+    "4"
+   ],
+   "text": "In the Bronx, Woodlawn-bound [4] skips Burnside Av",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "Burnside Av"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "32:25",
+    "32:27"
+   ]
+  },
+  {
+   "id": "lmm:alert:271996:26",
+   "kind": "delay",
+   "lines": [
+    "F"
+   ],
+   "text": "Downtown [F] trains are running with delays after they shared tracks with rerouted [C][E] trains.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:alert:271990:26",
+   "kind": "delay",
+   "lines": [
+    "C",
+    "E"
+   ],
+   "text": "[C][E] trains are running with delays in both directions after we moved a train that had its brakes activated near Canal St.",
+   "type": "Delays"
+  }
+ ],
+ "alerts_in_feed": 221,
+ "next_run": {
+  "start": "2026-10-16T13:20:00-04:00",
+  "issues": [
+   {
+    "id": "lmm:planned_work:35713",
+    "kind": "blocked",
+    "lines": [
+     "G"
+    ],
+    "text": "In Brooklyn, some Church Av-bound [G] trains will skip 4 Av/9 St, 15 St-Prospect Park, and Fort Hamilton Pkwy",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "4 Av-9 St",
+     "15 St-Prospect Park"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "33:34",
+     "33:40"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34754",
+    "kind": "blocked",
+    "lines": [
+     "1"
+    ],
+    "text": "In Upper Manhattan, no [1] between 137 St-City College and 168 St-Washington Hts",
+    "type": "Planned - Part Suspended",
+    "stations": [
+     "157 St",
+     "145 St"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "28:20",
+     "28:24"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34619",
+    "kind": "blocked",
+    "lines": [
+     "Q"
+    ],
+    "text": "In Brooklyn, Manhattan-bound [Q] skips W 8 St-NY Aquarium - take the [F] instead",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "W 8 St-NY Aquarium"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "34:11",
+     "34:12"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34601",
+    "kind": "blocked",
+    "lines": [
+     "F"
+    ],
+    "text": "In Brooklyn, Coney Island-bound [F] runs express from Jay St-MetroTech to Kings Hwy All trains at 18 Av and Kings Hwy board from the Manhattan-bound platform",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "Fort Hamilton Pkwy",
+     "Ditmas Av",
+     "Avenue I",
+     "Bay Pkwy",
+     "Avenue P"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "33:42",
+     "33:58"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34600",
+    "kind": "blocked",
+    "lines": [
+     "G"
+    ],
+    "text": "In Brooklyn, no [G] between Hoyt-Schermerhorn Sts and Church Av Trains run every 20 minutes between Bedford-Nostrand Avs and Hoyt-Schermerhorn Sts",
+    "type": "Planned - Part Suspended",
+    "stations": [
+     "Bergen St",
+     "Carroll St",
+     "Smith-9 Sts",
+     "4 Av-9 St",
+     "7 Av",
+     "15 St-Prospect Park",
+     "Fort Hamilton Pkwy"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "33:28",
+     "33:40"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34593",
+    "kind": "blocked",
+    "lines": [
+     "A"
+    ],
+    "text": "In Manhattan, uptown [A] local skips 72 St, 81 St-Museum of Natural History, 86 St, 96 St, 103 St, Cathedral Pkwy-110 St and 116 St",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "72 St",
+     "81 St-Museum of Natural History",
+     "86 St",
+     "96 St",
+     "103 St",
+     "Cathedral Pkwy (110 St)",
+     "116 St"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "27:23",
+     "27:34"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:33826",
+    "kind": "blocked",
+    "lines": [
+     "6"
+    ],
+    "text": "No [6] between Hunts Point Av and 125 St",
+    "type": "Planned - Part Suspended",
+    "stations": [
+     "3 Av-138 St",
+     "Brook Av",
+     "Cypress Av",
+     "E 143 St-St Mary's St",
+     "E 149 St",
+     "Longwood Av"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "36:38",
+     "36:48"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:31498",
+    "kind": "blocked",
+    "lines": [
+     "7"
+    ],
+    "text": "In Queens, Flushing-bound [7] skips 52 St and 69 St All trains at Woodside-61 St board from the Manhattan-bound platform",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "69 St",
+     "52 St"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "22:51",
+     "22:56"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:29949",
+    "kind": "blocked",
+    "lines": [
+     "4"
+    ],
+    "text": "In the Bronx, Woodlawn-bound [4] skips Burnside Av",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "Burnside Av"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "32:25",
+     "32:27"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34596",
+    "kind": "possible",
+    "lines": [
+     "A"
+    ],
+    "text": "In Brooklyn and Lower Manhattan, no Inwood-bound [A] at High St, Fulton St, Chambers St, Canal St and Spring St",
+    "type": "Planned - Reroute",
+    "stations": [
+     "Fulton St",
+     "Chambers St",
+     "Canal St",
+     "Spring St"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "27:01",
+     "27:10"
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,166 @@
+{
+ "checked_at": 1792094602,
+ "feed_timestamp": 1792094377,
+ "verdict": "blocked",
+ "now": [
+  {
+   "id": "lmm:planned_work:31498",
+   "kind": "blocked",
+   "lines": [
+    "7"
+   ],
+   "text": "In Queens, Flushing-bound [7] skips 52 St and 69 St All trains at Woodside-61 St board from the Manhattan-bound platform",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "69 St",
+    "52 St"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "10:08",
+    "10:13"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:29949",
+   "kind": "blocked",
+   "lines": [
+    "4"
+   ],
+   "text": "In the Bronx, Woodlawn-bound [4] skips Burnside Av",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "Burnside Av"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "18:37",
+    "18:40"
+   ]
+  },
+  {
+   "id": "lmm:alert:271996:26",
+   "kind": "delay",
+   "lines": [
+    "F"
+   ],
+   "text": "Downtown [F] trains are running with delays after they shared tracks with rerouted [C][E] trains.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:alert:271990:26",
+   "kind": "delay",
+   "lines": [
+    "C",
+    "E"
+   ],
+   "text": "[C][E] trains are running with delays in both directions after we moved a train that had its brakes activated near Canal St.",
+   "type": "Delays"
+  }
+ ],
+ "alerts_in_feed": 221,
+ "next_run": {
+  "start": "2026-10-16T05:12:30-04:00",
+  "issues": [
+   {
+    "id": "lmm:planned_work:34601",
+    "kind": "blocked",
+    "lines": [
+     "F"
+    ],
+    "text": "In Brooklyn, Coney Island-bound [F] runs express from Jay St-MetroTech to Kings Hwy All trains at 18 Av and Kings Hwy board from the Manhattan-bound platform",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "Bergen St",
+     "Carroll St",
+     "Smith-9 Sts",
+     "4 Av-9 St",
+     "15 St-Prospect Park",
+     "Fort Hamilton Pkwy",
+     "Ditmas Av",
+     "Avenue I",
+     "Bay Pkwy",
+     "Avenue P"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "28:09",
+     "28:37"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34568",
+    "kind": "blocked",
+    "lines": [
+     "D"
+    ],
+    "text": "In Brooklyn, no [D] at Coney Island-Stillwell Av",
+    "type": "Planned - Part Suspended",
+    "stations": [
+     "Coney Island-Stillwell Av"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "28:56",
+     "29:00"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:31498",
+    "kind": "blocked",
+    "lines": [
+     "7"
+    ],
+    "text": "In Queens, Flushing-bound [7] skips 52 St and 69 St All trains at Woodside-61 St board from the Manhattan-bound platform",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "69 St",
+     "52 St"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "10:08",
+     "10:13"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:29949",
+    "kind": "blocked",
+    "lines": [
+     "4"
+    ],
+    "text": "In the Bronx, Woodlawn-bound [4] skips Burnside Av",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "Burnside Av"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "18:37",
+     "18:40"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34596",
+    "kind": "possible",
+    "lines": [
+     "A"
+    ],
+    "text": "In Brooklyn and Lower Manhattan, no Inwood-bound [A] at High St, Fulton St, Chambers St, Canal St and Spring St",
+    "type": "Planned - Reroute",
+    "stations": [
+     "Spring St",
+     "Canal St",
+     "Chambers St",
+     "Fulton St",
+     "High St"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "24:24",
+     "24:35"
+    ]
+   }
+  ]
+ }
+}
