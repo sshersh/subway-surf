@@ -43,6 +43,7 @@ if END_AT >= 0:
     t, here = int(t0), int(order[0])
     rows.append({"stop_id": st[here], "time": hms(t), "route": ""})
 walk_s = ride_s = 0
+rides = []   # [route, board stop, alight stop, dep, arr, trip] per train ridden
 for b, e, w in legs:
     b, e, w = int(b), int(e), int(w)
     r = troute[int(trip[b]) % T]
@@ -75,6 +76,8 @@ for b, e, w in legs:
         if c == e: break
         n2 = int(nxt[c]); assert trip[n2] == trip[c]; c = n2
     ride_s += int(arr_t[e] - dep_t[b])
+    if rides and rides[-1][5] == int(trip[b]): rides[-1][2] = st[int(arr_s[e])]; rides[-1][4] = int(arr_t[e])
+    else: rides.append([r, st[int(dep_s[b])], st[int(arr_s[e])], int(dep_t[b]), int(arr_t[e]), int(trip[b])])
     if itin and itin[-1]["kind"] == "ride" and itin[-1]["trip"] == int(trip[b]):
         L = itin[-1]; L["to"] = names[int(arr_s[e])]; L["t1"] = hms(int(arr_t[e])); L["stops"] += nstops; L["new"] += new
     else:
@@ -99,7 +102,7 @@ stats = {"total_s": int(total), "start": hms(int(first)), "end": hms(int(last_ne
          "walks": sum(1 for L in itin if L["kind"] == "walk"), "start_station": names[int(order[0])],
          "end_station": names[END_AT] if END_AT >= 0 else names[max(visited, key=visited.get)]}
 for L in itin: L.pop("trip", None)
-out = {"rows": rows, "itin": itin, "stats": stats}
+out = {"rows": rows, "itin": itin, "stats": stats, "rides": [x[:5] for x in rides]}
 if sol.ndim == 1:   # the solver's target order, so the route can be re-run on other days (headways/predictability.py)
     out["t0"] = int(t0); out["order"] = [meta["stations"][int(i)] for i in order]
 json.dump(out, open(sys.argv[2], "w"))

@@ -58,8 +58,10 @@ class Network:
     """Connection arrays in the solver's format (sorted by departure)."""
     def __init__(self, conns, n, static):
         conns.sort()
-        C = np.array(conns, dtype=np.int64) if conns else np.zeros((0, 6), np.int64)
-        self.dep_t, self.arr_t, self.dep_s, self.arr_s, self.trip, hop = (C[:, i].copy() for i in range(6))
+        C = np.array(conns, dtype=np.int64) if conns else np.zeros((0, 7), np.int64)
+        self.dep_t, self.arr_t, self.dep_s, self.arr_s, self.trip, hop, self.route = (C[:, i].copy() for i in range(7))
+        o = np.argsort(self.dep_s, kind="stable"); cut = np.searchsorted(self.dep_s[o], np.arange(n + 1))
+        self.at = [o[cut[i]:cut[i + 1]] for i in range(n)]      # departures from each station, by time
         self.nxt = np.full(len(C), -1, np.int64)
         order = np.lexsort((self.dep_t, self.trip))
         same = self.trip[order[:-1]] == self.trip[order[1:]]
@@ -73,6 +75,13 @@ class Network:
         served = np.zeros(n, bool); served[self.dep_s] = True; served[self.arr_s] = True
         if len(self.pp_lst): served[self.pp_lst] = True
         self.served = served
+
+
+def rcode(r):
+    """Route id -> int; the diamond/express variants (6X, 7X, FX) count as the same line."""
+    r = r[:-1] if len(r) == 2 and r.endswith("X") else r
+    return ROUTES.setdefault(r, len(ROUTES))
+ROUTES = {}
 
 
 class Static:
@@ -91,7 +100,9 @@ class Static:
         # the static timetable as a Network (two service days, as in the solver)
         tr = self.m["trip"]; rt = self.meta["trip_route"]
         hops = [self.hop_id.get((rt[int(t) % T], int(a), int(b)), -1) for t, a, b in zip(tr, self.m["dep_s"], self.m["arr_s"])]
-        conns = list(zip(self.m["dep_t"].tolist(), self.m["arr_t"].tolist(), self.m["dep_s"].tolist(), self.m["arr_s"].tolist(), tr.tolist(), hops))
+        rc = [rcode(rt[int(t) % T]) for t in tr]
+        conns = list(zip(self.m["dep_t"].tolist(), self.m["arr_t"].tolist(), self.m["dep_s"].tolist(), self.m["arr_s"].tolist(), tr.tolist(), hops, rc))
+        fp = self.m; self.fp = {(a, int(fp['fp_to'][k])): int(fp['fp_t'][k]) for a in range(self.n) for k in range(fp['fp_ptr'][a], fp['fp_ptr'][a + 1])}
         self.net = Network(conns, self.n, self)
 
 
@@ -118,7 +129,7 @@ def observed_network(static, day, tr_txt, st_txt, tr2, st2):
             v.sort(); rid = route[uid]
             for (a1, d1, s1), (a2, d2, s2) in zip(v, v[1:]):
                 if s1 != s2 and a2 >= d1 and a2 - d1 < 3 * 3600:
-                    conns.append((int(d1), int(a2), s1, s2, tix, static.hop_id.get((rid, s1, s2), -1)))
+                    conns.append((int(d1), int(a2), s1, s2, tix, static.hop_id.get((rid, s1, s2), -1), rcode(rid)))
             tix += 1
     return Network(conns, static.n, static)
 
@@ -161,6 +172,75 @@ def replay(static, net, order, t0, express):
     return t - (first if first >= 0 else t0), missing
 
 
+def follow(static, net, plan, t0, express):
+    """Ride the route as planned: at each planned boarding station take the first train of the planned
+    line that actually gets to the planned alighting station soonest (walking between stations where
+    the plan walks). When the line has no such train (service change), get there on any train. Then
+    sweep up stations that were still missed, in the plan's order.
+    Returns (finish - first departure seconds, stations never reached, rides replaced)."""
+    from engine import _leg
+    from expr import _legx
+    m = static.m; n = static.n; sid = static.sid
+    ws = (np.zeros(n, np.int64), np.zeros(n, np.int64), np.zeros(n, np.int64), np.zeros(n, np.int64),
+          np.zeros(n, np.int64), np.zeros(n, np.int64), np.zeros(n, np.int64),
+          np.zeros(net.ntrips, np.int64), np.zeros(net.ntrips, np.int64))
+    ob = np.zeros(64, np.int64); oe = np.zeros(64, np.int64); ow = np.zeros(64, np.int64)
+    visited = ~net.served.copy()
+    st = {"here": None, "t": int(t0), "trip": -1, "first": -1, "gen": 0}
+
+    def ride(b, e):            # mark a ride on connections b..e of one trip
+        c = b; visited[net.dep_s[c]] = True
+        if st["first"] < 0: st["first"] = int(net.dep_t[b])
+        while True:
+            if express: visited[net.pp_lst[net.pp_ptr[c]:net.pp_ptr[c + 1]]] = True
+            visited[net.arr_s[c]] = True
+            if c == e: break
+            c = int(net.nxt[c])
+        st["here"] = int(net.arr_s[e]); st["t"] = int(net.arr_t[e]); st["trip"] = int(net.trip[e])
+
+    def leg(tgt, x):           # earliest arrival on any trains; x: passing counts
+        if st["here"] == tgt: return True
+        st["gen"] += 1
+        args = (net.dep_t, net.arr_t, net.dep_s, net.arr_s, net.trip, m["chg"], m["fp_ptr"], m["fp_to"], m["fp_t"], *ws, st["gen"], ob, oe, ow)
+        a, k = _legx(st["here"], st["t"], st["trip"], tgt, net.pp_ptr, net.pp_lst, *args) if x else _leg(st["here"], st["t"], st["trip"], tgt, *args)
+        if a >= INF: return False
+        for q in range(k - 1, -1, -1): ride(int(ob[q]), int(oe[q]))
+        st["t"] = int(a)
+        return True
+
+    rides, order = plan; replaced = 0
+    for r, b, e in rides:
+        r = rcode(r); b = sid.get(b); e = sid.get(e)
+        if b is None or e is None: continue
+        if st["here"] is None: st["here"] = b
+        if st["here"] != b:                    # walk (or, if there is no walk, any train) to the boarding station
+            w = static.fp.get((st["here"], b))
+            if w is not None: st["t"] += w; st["here"] = b; st["trip"] = -1
+            elif not leg(b, False): replaced += 1; continue
+        ready = st["t"] + (int(m["chg"][b]) if st["trip"] >= 0 else 0)
+        best = None; idx = net.at[b]
+        i0 = np.searchsorted(net.dep_t[idx], st["t"])
+        for c in idx[i0:]:
+            c = int(c); d = int(net.dep_t[c])
+            if best is not None and d >= best[0]: break
+            if d > st["t"] + 3 * 3600: break
+            if net.route[c] != r or (d < ready and int(net.trip[c]) != st["trip"]): continue
+            x = c; hops = 0
+            while x >= 0 and hops < 80:
+                if net.arr_s[x] == e:
+                    if best is None or net.arr_t[x] < best[0]: best = (int(net.arr_t[x]), c, x)
+                    break
+                x = int(net.nxt[x]); hops += 1
+        if best: ride(best[1], best[2])
+        else:
+            replaced += 1
+            leg(e, False)
+    for tgt in list(order) + list(range(n)):
+        if not visited[tgt]: leg(tgt, express)
+    first = st["first"] if st["first"] >= 0 else int(t0)
+    return st["t"] - first, int((~visited).sum()), replaced
+
+
 def route_plan(static, path):
     """Target order, start time, express?, planned seconds. Uses the solver's full station order
     ("order", stop ids, written by solver/export.py) when present, else the first visits."""
@@ -172,6 +252,7 @@ def route_plan(static, path):
         for row in rows:
             i = static.sid.get(row["stop_id"])
             if i is not None and i not in seen: seen.add(i); order.append(i)
+    if r.get("rides"): order = ([x[:3] for x in r["rides"]], order)
     t0 = r.get("t0", sum(int(x) * k for x, k in zip(s["start"].split(":"), (3600, 60, 1))))
     return order, t0, s.get("rules", "local") == "express", s["total_s"]
 
@@ -183,6 +264,12 @@ def stats(vals):
     return {"n": n, "mean_h": round(mean / 3600, 3), "sd_min": round(statistics.pstdev(v) / 60, 1),
             "p10_h": round(pct(10) / 3600, 3), "p50_h": round(pct(50) / 3600, 3), "p90_h": round(pct(90) / 3600, 3),
             "p95_h": round(pct(95) / 3600, 3), "buffer_index": round((pct(95) - mean) / mean, 3)}
+
+
+def run(static, net, r, offset):
+    t0 = r["t0"] + 60 * offset
+    if isinstance(r["order"], tuple): return follow(static, net, r["order"], t0, r["express"])
+    return replay(static, net, r["order"], t0, r["express"]) + (0,)
 
 
 def main():
@@ -202,10 +289,10 @@ def main():
     days = sorted(d for d in have if date.fromisoformat(d).weekday() < 5 and
                   (date.fromisoformat(d) + timedelta(days=1)).isoformat() in have)[-a.days:]
     print("weekdays:", days, flush=True)
-    res = {r["label"]: {"static": [], "observed": collections.defaultdict(list), "missing": 0} for r in routes}
+    res = {r["label"]: {"static": [], "observed": collections.defaultdict(list), "missing": 0, "replaced": 0} for r in routes}
     for r in routes:     # static timetable, same offsets
         for o in a.offsets:
-            tt, miss = replay(static, static.net, r["order"], r["t0"] + 60 * o, r["express"])
+            tt, miss, rep = run(static, static.net, r, o)
             res[r["label"]]["static"].append(tt)
     for d in days:
         f1 = day_files(meta, d); f2 = day_files(meta, (date.fromisoformat(d) + timedelta(days=1)).isoformat())
@@ -214,8 +301,8 @@ def main():
         print(f"{d}: {len(net.dep_t):,} actual connections, {int(net.served.sum())} stations served", flush=True)
         for r in routes:
             for o in a.offsets:
-                tt, miss = replay(static, net, r["order"], r["t0"] + 60 * o, r["express"])
-                res[r["label"]]["observed"][d].append(tt); res[r["label"]]["missing"] += miss
+                tt, miss, rep = run(static, net, r, o)
+                res[r["label"]]["observed"][d].append(tt); res[r["label"]]["missing"] += miss; res[r["label"]]["replaced"] += rep
             print(f"   {r['label']}: {[round(x/3600, 2) for x in res[r['label']]['observed'][d]]}", flush=True)
     out = {}
     for r in routes:
@@ -227,11 +314,14 @@ def main():
                            "between_day_sd_min": round(statistics.pstdev(day_means) / 60, 1),
                            "within_day_sd_min": round(statistics.mean(within) / 60, 1),
                            "per_day_mean_h": {d: round(statistics.mean(v) / 3600, 3) for d, v in R["observed"].items()},
-                           "unreached_station_visits": R["missing"], "days": days, "offsets_min": a.offsets}
+                           "unreached_station_visits": R["missing"], "rides_replaced": R["replaced"],
+                           "strategy": "planned rides" if isinstance(r["order"], tuple) else "solver order", "days": days, "offsets_min": a.offsets}
     os.makedirs(a.out, exist_ok=True)
     json.dump(out, open(os.path.join(a.out, "predictability.json"), "w"), indent=1)
     L = ["# Route predictability on real days", "",
-         f"Each route keeps its station order and takes whichever train actually gets to the next station soonest. "
+         f"Each route is ridden as planned: same lines, same boarding and alighting stations, same walks, taking the "
+         f"first train of the planned line that actually gets there (any train if the line is not running), then any "
+         f"station still missed is swept up at the end. "
          f"Runs: weekdays {', '.join(days)} (each continuing into the next day) x start shifted by {a.offsets} min. "
          f"Actual trains from subwaydata.nyc (MTA GTFS-realtime).", "",
          "| Route | Rules | Planned | Static timetable (mean) | Actual: mean | SD | P10 | P50 | P90 | P95 | Buffer index | Day-to-day SD | Within-day SD |",
@@ -242,6 +332,8 @@ def main():
         L.append(f"| {k} | {v['rules']} | {hm(v['planned_h'])} | {hm(s['mean_h'])} | **{hm(o['mean_h'])}** | {o['sd_min']} min | "
                  f"{hm(o['p10_h'])} | {hm(o['p50_h'])} | {hm(o['p90_h'])} | {hm(o['p95_h'])} | {o['buffer_index']:.1%} | "
                  f"{v['between_day_sd_min']} min | {v['within_day_sd_min']} min |")
+    L += ["", "Rides replaced (planned line had no train) / stations never reached, summed over all runs: " +
+          "; ".join(f"{k}: {v['rides_replaced']} / {v['unreached_station_visits']}" for k, v in out.items())]
     L += ["", "Per-day means (h): " + "; ".join(f"{k}: " + ", ".join(f"{d[5:]} {x:.2f}" for d, x in v["per_day_mean_h"].items()) for k, v in out.items())]
     open(os.path.join(a.out, "predictability.md"), "w").write("\n".join(L) + "\n")
     print("\n".join(L))
