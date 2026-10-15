@@ -17,6 +17,10 @@ on:
         description: "Re-plan even if the service changes haven't changed"
         type: boolean
         default: false
+      publish_preview:
+        description: "Publish the last re-plan preview (replan-results branch) as is, without solving"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -77,9 +81,19 @@ jobs:
           print(f"hash={c['hash']}"); print(f"count={len(c['changes'])}")
           EOF
 
+      - name: Use the re-plan preview (no solving)
+        if: inputs.publish_preview
+        run: |
+          git fetch --depth 1 origin replan-results
+          mkdir -p replan
+          for f in replan.json current_route.json current_route_express.json; do
+            git show "FETCH_HEAD:$f" > "replan/$f"
+          done
+          python3 -c "import json; d=json.load(open('replan/replan.json')); print('preview for', d['run_date'], 'solved at', d['solved_at'], {k: v.get('total_s') for k, v in d['rules'].items()})"
+
       - name: Restore the last re-plan
         id: cache
-        if: steps.changes.outputs.count > 0
+        if: steps.changes.outputs.count > 0 && !inputs.publish_preview
         uses: actions/cache/restore@v4
         with:
           path: replan
@@ -87,7 +101,7 @@ jobs:
           restore-keys: replan-v1-
 
       - name: Get the GTFS timetable
-        if: steps.changes.outputs.count > 0 && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
+        if: steps.changes.outputs.count > 0 && !inputs.publish_preview && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
         run: |
           npm pack mta-gtfs-static --silent
           mkdir -p gtfs && tar xzf mta-gtfs-static-*.tgz -C gtfs
@@ -96,7 +110,7 @@ jobs:
 
       - name: Re-plan the route around the changes
         id: replan
-        if: steps.changes.outputs.count > 0 && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
+        if: steps.changes.outputs.count > 0 && !inputs.publish_preview && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
         continue-on-error: true
         run: |
           python3 solver/replan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out replan_new \
@@ -125,7 +139,7 @@ jobs:
         continue-on-error: true   # a forced re-plan can't overwrite an existing cache entry
 
       - name: No changes to plan around
-        if: steps.feed.outputs.ok == 'true' && steps.changes.outputs.count == '0'
+        if: steps.feed.outputs.ok == 'true' && steps.changes.outputs.count == '0' && !inputs.publish_preview
         run: |
           rm -rf replan && mkdir -p replan
           python3 - <<'EOF'
