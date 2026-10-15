@@ -6,8 +6,12 @@ name: Route predictability on real days
 on:
   push:
     branches: [headway-model]
-    paths: ["headways/predictability.py", "headways/results/*_route.json", ".github/workflows/predictability.yml"]
+    paths: ["headways/predictability.py", "headways/results/*_route.json", "results/best_route*.json", ".github/workflows/predictability.yml"]
   workflow_dispatch:
+
+concurrency:
+  group: predictability
+  cancel-in-progress: true
 
 permissions:
   contents: write

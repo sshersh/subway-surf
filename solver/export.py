@@ -99,5 +99,8 @@ stats = {"total_s": int(total), "start": hms(int(first)), "end": hms(int(last_ne
          "walks": sum(1 for L in itin if L["kind"] == "walk"), "start_station": names[int(order[0])],
          "end_station": names[END_AT] if END_AT >= 0 else names[max(visited, key=visited.get)]}
 for L in itin: L.pop("trip", None)
-json.dump({"rows": rows, "itin": itin, "stats": stats}, open(sys.argv[2], "w"))
+out = {"rows": rows, "itin": itin, "stats": stats}
+if sol.ndim == 1:   # the solver's target order, so the route can be re-run on other days (headways/predictability.py)
+    out["t0"] = int(t0); out["order"] = [meta["stations"][int(i)] for i in order]
+json.dump(out, open(sys.argv[2], "w"))
 print(json.dumps(stats, indent=1))

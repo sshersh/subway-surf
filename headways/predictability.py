@@ -125,7 +125,7 @@ def observed_network(static, day, tr_txt, st_txt, tr2, st2):
 
 def replay(static, net, order, t0, express):
     """Follow the station order, taking the earliest actual arrival to the next unvisited station.
-    Returns (finish time - t0 seconds, stations that could not be reached)."""
+    Returns (finish time - first departure, seconds; stations that could not be reached)."""
     from engine import _leg
     from expr import _legx
     m = static.m; n = static.n
@@ -135,6 +135,7 @@ def replay(static, net, order, t0, express):
     ob = np.zeros(64, np.int64); oe = np.zeros(64, np.int64); ow = np.zeros(64, np.int64)
     visited = ~net.served.copy()           # stations with no observed service that day are not required
     cur, t, cur_trip, gen = int(order[0]), int(t0), -1, 0
+    first = -1                             # the clock starts on the first train, as in the solver
     targets = [s for s in order[1:]] + [s for s in range(n)]
     for tgt in targets:
         if visited[tgt] or tgt == cur and visited[tgt]: continue
@@ -149,6 +150,7 @@ def replay(static, net, order, t0, express):
         if a >= INF: continue                 # unreachable now (e.g. service ended); try the rest
         for q in range(k - 1, -1, -1):
             c = int(ob[q]); visited[net.dep_s[c]] = True
+            if first < 0: first = int(net.dep_t[c])
             while True:
                 if express: visited[net.pp_lst[net.pp_ptr[c]:net.pp_ptr[c + 1]]] = True
                 visited[net.arr_s[c]] = True
@@ -156,16 +158,21 @@ def replay(static, net, order, t0, express):
                 c = int(net.nxt[c])
         cur_trip = int(net.trip[oe[0]]); cur = int(net.arr_s[oe[0]]); t = int(a)
     missing = int((~visited).sum())
-    return t - t0, missing
+    return t - (first if first >= 0 else t0), missing
 
 
 def route_plan(static, path):
+    """Target order, start time, express?, planned seconds. Uses the solver's full station order
+    ("order", stop ids, written by solver/export.py) when present, else the first visits."""
     r = json.load(open(path)); rows = r["rows"]; s = r["stats"]
-    seen, order = set(), []
-    for row in rows:
-        i = static.sid.get(row["stop_id"])
-        if i is not None and i not in seen: seen.add(i); order.append(i)
-    t0 = sum(int(x) * k for x, k in zip(s["start"].split(":"), (3600, 60, 1)))
+    if r.get("order"):
+        order = [static.sid[x] for x in r["order"] if x in static.sid]
+    else:
+        seen, order = set(), []
+        for row in rows:
+            i = static.sid.get(row["stop_id"])
+            if i is not None and i not in seen: seen.add(i); order.append(i)
+    t0 = r.get("t0", sum(int(x) * k for x, k in zip(s["start"].split(":"), (3600, 60, 1))))
     return order, t0, s.get("rules", "local") == "express", s["total_s"]
 
 
