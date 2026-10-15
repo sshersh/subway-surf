@@ -4,16 +4,16 @@ A trip is a list of stop times (seq, station, arr, dep, platform) in order, with
 after the service day's midnight. For one service day:
   skip  drops the stop: the train runs straight from the stop before to the stop after
   cut   drops the stop and splits the trip there: you can't ride through
-Used by model.py (to build the timetable the solver plans on) and verify.py (to check a route
-against the same timetable), so both always agree on what runs.
+A change targets (line, station, direction) triples; direction None means both. A "between A and B"
+cut only applies to stations the trip passes between A and B. Used by model.py (to build the
+timetable the solver plans on) and verify.py (to check a route against the same timetable), so both
+always agree on what runs.
 """
-import json, math, re
+import json
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
-BOROUGH = {"manhattan": (40.754, -73.984), "brooklyn": (40.650, -73.950), "queens": (40.730, -73.820),
-           "bronx": (40.850, -73.870), "the bronx": (40.850, -73.870)}
 ALIAS = {"6X": "6", "7X": "7", "FX": "F", "5X": "5", "SS": "SI"}
 
 
@@ -22,72 +22,98 @@ def line_of(route_id):
     return ALIAS.get(r, r)
 
 
+def complexes(stops, transfers):
+    """Stations that are one complex under two GTFS IDs (same name, linked by a transfer), e.g.
+    Delancey St-Essex St: F15 for the F, M18 for the J/M/Z. Alerts may use either ID for any line."""
+    parent = {s["stop_id"]: (s["parent_station"] or s["stop_id"]) for s in stops}
+    name = {s["stop_id"]: s["stop_name"] for s in stops}
+    same = {}
+    for t in transfers:
+        a, b = parent.get(t["from_stop_id"]), parent.get(t["to_stop_id"])
+        if a and b and a != b and name.get(a) == name.get(b):
+            g = same.get(a, {a}) | same.get(b, {b})
+            for x in g: same[x] = g
+    return same
+
+
 class Changes:
     def __init__(self, path):
         d = json.load(open(path)) if isinstance(path, str) else path
         self.raw = d
         y, m, dd = map(int, d["run_date"].split("-"))
         self.days = [datetime(y, m, dd, tzinfo=ET) + timedelta(days=k) for k in (0, 1)]
-        self.items = [(c["effect"], set(c["lines"]), set(c["stops"]), c["when"], {}) for c in d["changes"]]
-        self.texts = [c.get("text", "") for c in d["changes"]]
-        self.lines = set().union(*(l for _, l, _, _, _ in self.items)) if self.items else set()
-        self.all_lines = any(not l for _, l, _, _, _ in self.items)
+        self.items = []
+        for c in d["changes"]:
+            tg = {}
+            for ln, st, di in c["targets"]:
+                tg.setdefault((ln, st), set()).add(di)
+            ends = [set(c["ends"][0]), set(c["ends"][1])] if c.get("ends") else None
+            self.items.append([c["effect"], tg, {ln for ln, _ in tg}, ends, c["when"], None])
+        self.lines = set().union(*(it[2] for it in self.items)) if self.items else set()
 
-    def resolve_directions(self, patterns, coords, names):
-        """Alerts usually name parent stations and give the direction only in words ("Woodlawn-bound [4]
-        skips Burnside Av"). Work out which platform direction (N/S suffix) each line's change applies to,
-        so the other direction keeps stopping. patterns: {(line, 'N'|'S'): [station lists of trips]};
-        coords: station -> (lat, lon); names: station -> name. Returns [(text, line, suffix)] resolved."""
-        out = []
-        for i, (eff, lines, stops, when, dirs) in enumerate(self.items):
-            text = re.sub(r"\[([A-Z0-9]+)\]", r"\1", self.texts[i] or "")
-            if re.search(r"both directions", text, re.I): continue
-            m = re.search(r"([A-Za-z0-9 .'/]+?)-bound", text) or re.search(r"\b(uptown|downtown|northbound|southbound)\b", text, re.I)
-            if not m: continue
-            phrase = m.group(1).strip().lower()
-            for line in lines:
-                score = {}
-                for d in "NS":
-                    trips = [v for v in patterns.get((line, d), []) if stops & set(v)]
-                    if not trips: continue
-                    v = max(trips, key=len); k = max(j for j, x in enumerate(v) if x in stops)
-                    down = v[k + 1:] or v[-1:]
-                    if phrase in BOROUGH:
-                        la, lo = BOROUGH[phrase]; t = coords[v[-1]]
-                        score[d] = -math.hypot(t[0] - la, (t[1] - lo) * 0.76)
-                    elif phrase in ("uptown", "northbound"): score[d] = coords[down[-1]][0] - coords[v[k]][0]
-                    elif phrase in ("downtown", "southbound"): score[d] = coords[v[k]][0] - coords[down[-1]][0]
-                    else: score[d] = 1 if any(phrase in names[x].lower() for x in down) else 0
-                if len(score) == 2 and score["N"] != score["S"]:
-                    dirs[line] = max(score, key=score.get); out.append((text[:80], line, dirs[line]))
-        return out
+    def link(self, same):
+        """Let every station ID in a complex stand for the others (see complexes())."""
+        ex = lambda ids: set().union(*(same.get(x, {x}) for x in ids)) if ids else set()
+        for it in self.items:
+            tg = {}
+            for (ln, st), dirs in it[1].items():
+                for x in same.get(st, {st}): tg.setdefault((ln, x), set()).update(dirs)
+            it[1] = tg
+            if it[3]: it[3] = [ex(it[3][0]), ex(it[3][1])]
+
+    def learn(self, trips):
+        """trips: (route_id, [station, ...]) for every trip. For each "between A and B" change, collect
+        the stations trips pass between A and B, for trips that don't reach both ends themselves."""
+        trips = list(trips)
+        for it in self.items:
+            if not it[3]: continue
+            span = set()
+            for route_id, stations in trips:
+                ln = line_of(route_id)
+                if ln not in it[2] and None not in it[2]: continue
+                pa = [i for i, s in enumerate(stations) if s in it[3][0]]
+                pb = [i for i, s in enumerate(stations) if s in it[3][1]]
+                if pa and pb:
+                    lo, hi = sorted((pa[0], pb[0])); span.update(stations[lo + 1:hi])
+            it[5] = span or None
 
     def __bool__(self):
         return bool(self.items)
 
-    def effect(self, line, station, platform, t, day):
-        """'cut', 'skip' or None for a train on `line` at `station` t seconds into service day `day`."""
-        best = None
-        for eff, lines, stops, when, dirs in self.items:
-            if lines and line not in lines: continue
-            if station not in stops and platform not in stops: continue
-            if line in dirs and not platform.endswith(dirs[line]): continue   # the other direction runs normally
-            if when != "always":
-                w = (self.days[day] + timedelta(seconds=t)).timestamp()
-                if not any(s <= w < e for s, e in when): continue
-            if eff == "cut": return "cut"
-            best = eff
-        return best
+    def _active(self, when, t, day):
+        if when == "always": return True
+        w = (self.days[day] + timedelta(seconds=t)).timestamp()
+        return any(s <= w < e for s, e in when)
 
-    def apply(self, stops, route_id, day):
+    def apply(self, stops, route_id, direction, day):
         """Return the trip as a list of runnable pieces (each with at least two stops), plus counts."""
-        line = line_of(route_id)
-        if not self.all_lines and line not in self.lines:
+        line, direction = line_of(route_id), int(direction)
+        if line not in self.lines and None not in self.lines:
+            return [stops], 0, 0
+        stations = [s[1] for s in stops]
+        rules = []
+        for eff, tg, ls, ends, when, span in self.items:
+            if line not in ls and None not in ls: continue
+            hit = {st for (ln, st), dirs in tg.items() if ln in (line, None) and (None in dirs or direction in dirs)}
+            if not hit: continue
+            if ends:   # only stations this trip passes strictly between the two ends
+                pa = [i for i, s in enumerate(stations) if s in ends[0]]
+                pb = [i for i, s in enumerate(stations) if s in ends[1]]
+                if pa and pb:
+                    lo, hi = sorted((pa[0], pb[0]))
+                    hit &= set(stations[lo + 1:hi])
+                elif span is not None:   # e.g. a short-turn trip: use the stretch other trips show
+                    hit &= span
+            if hit: rules.append((eff, hit, when))
+        if not rules:
             return [stops], 0, 0
         pieces, cur, nskip, ncut = [], [], 0, 0
         for st in stops:
-            _, station, arr, dep, platform = st
-            eff = self.effect(line, station, platform, arr, day)
+            eff = None
+            for e, hit, when in rules:
+                if st[1] in hit and self._active(when, st[2], day):
+                    eff = e
+                    if e == "cut": break
             if eff == "cut":
                 ncut += 1
                 if len(cur) >= 2: pieces.append(cur)
@@ -98,18 +124,3 @@ class Changes:
                 cur.append(st)
         if len(cur) >= 2: pieces.append(cur)
         return pieces, nskip, ncut
-
-
-def resolve(changes, seqs, route_of, stops):
-    """Resolve worded directions for a Changes object from the weekday trips.
-    seqs: trip -> [(seq, station, arr, dep, platform)], route_of: trip -> route id, stops: GTFS stops."""
-    import collections
-    pats = collections.defaultdict(set)
-    for t, v in seqs.items():
-        d = v[0][4][-1:]
-        if d in "NS": pats[(line_of(route_of[t]), d)].add(tuple(x[1] for x in v))
-    pats = {k: [list(x) for x in v] for k, v in pats.items()}
-    xy = {s["stop_id"]: (float(s["stop_lat"]), float(s["stop_lon"])) for s in stops}
-    nm = {s["stop_id"]: s["stop_name"] for s in stops}
-    return changes.resolve_directions(pats, xy, nm)
-

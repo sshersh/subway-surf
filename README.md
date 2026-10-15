@@ -82,10 +82,22 @@ The MTA's own feed is at <https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip> 
 - **Delays**: delays on a line the plan uses. The route's timing assumes trains run on time.
 - **Planned work during the next run**: planned alerts that overlap a leg's clock time if the run started at its scheduled time on the next weekday.
 
-**Re-planned route.** `status/alerts.py` turns alerts that name stations into service changes:
+**Re-planned route.** `status/alerts.py` turns alerts into service changes. Each change targets (line, station, direction) triples:
 
-- **Skip**: trains on the named lines run but don't stop there (skipped stops, express runs).
-- **Cut**: trains don't run through there at all (suspensions, closures). The trip is split at that point, so you can't ride through.
+- **Skip** (Stops Skipped, Local to Express): trains run but don't stop there.
+- **Cut** (Suspended, Part Suspended, Station Closed): trains don't run through there at all. The trip is split at that point, so you can't ride through.
+
+An alert's station list covers the whole stretch it touches, including stations still served at either end, so the headline picks the stations:
+
+| Headline | Stations affected |
+|---|---|
+| "skips X, Y and Z" | X, Y and Z |
+| "runs express from A to B" | the listed stations except A and B |
+| "no [M] between A and B" | stations trains pass strictly between A and B |
+| "no [7] at S" | S |
+| anything else, e.g. "[C] service ends early" | every listed station |
+
+For "between" alerts, the order of stations comes from each line's stop patterns, not from the alert. These are in `results/line_order.json`; rebuild it with `status/line_order.py $GTFS` when the timetable changes. Stations with two GTFS IDs, like Delancey St–Essex St (`F15`/`M18`), count as one. Express-to-local changes add stops, which the model can't do, so they're ignored; they only help. The banner uses the same reading.
 
 Changes apply to the next weekday after today. Unplanned alerts that are active now are assumed to last the whole run; planned work applies only during its posted hours. Reroutes, delays and alerts that name no stations can't be modeled, so they appear only in the banner.
 

@@ -83,6 +83,9 @@ def repair(d, order, t0, tries=300):
     return _REPAIRED[key]
 
 
+REPAIR_SECONDS = 45   # each try replays the whole order (~5 s); the fresh seed covers what this misses
+
+
 def _repair(d, order, t0, tries):
     """Make a station order feasible on a changed timetable. When the replay can't reach a station
     any more (its service ends, e.g. a line suspended from Saturday 03:30), move that station earlier,
@@ -94,8 +97,9 @@ def _repair(d, order, t0, tries):
     np.maximum.at(last, m["dep_s"], m["dep_t"]); np.maximum.at(last, m["arr_s"], m["arr_t"])
     ws = [np.zeros(n, np.int64) for _ in range(7)] + [np.zeros(nt, np.int64), np.zeros(nt, np.int64)]
     ob, oe, ow = (np.zeros(64, np.int64) for _ in range(3))
-    order = [int(x) for x in order]; gen = 0
+    order = [int(x) for x in order]; gen = 0; deadline = time.time() + REPAIR_SECONDS
     for _ in range(tries):
+        if time.time() > deadline: break
         vis = np.zeros(n, bool); cur, t, ct = order[0], int(t0), -1; at = [t]; bad = None
         for p in range(1, len(order)):
             tgt = order[p]

@@ -41,17 +41,18 @@ for st in stop_times:
         seqs[st["trip_id"]].append((int(st["stop_sequence"]), parent[st["stop_id"]], tsec(st["arrival_time"]), tsec(st["departure_time"]), st["stop_id"]))
 for v in seqs.values(): v.sort()
 base_served = set(p for v in seqs.values() for _, p, _, _, _ in v)
-if CHANGES:   # which direction each worded alert ("Flushing-bound 7 skips ...") applies to
-    from service import resolve
-    for text, line, d in resolve(CHANGES, seqs, {t: v["route_id"] for t, v in trip_info.items()}, stops):
-        print(f"  direction: {line} {d}-platforms only  ({text})")
+
+if CHANGES:
+    from service import complexes
+    CHANGES.link(complexes(stops, transfers))
+    CHANGES.learn((trip_info[t]["route_id"], [x[1] for x in v]) for t, v in seqs.items())
 
 # runnable trips per service day: (day, gtfs trip id, stop times)
 runs, nskip, ncut = [], 0, 0
 for day in (0, 1):
     for t in sorted(seqs):
         if CHANGES:
-            pieces, k, c = CHANGES.apply(seqs[t], trip_info[t]["route_id"], day); nskip += k; ncut += c
+            pieces, k, c = CHANGES.apply(seqs[t], trip_info[t]["route_id"], trip_info[t]["direction_id"], day); nskip += k; ncut += c
         else:
             pieces = [seqs[t]]
         runs.extend((day, t, p) for p in pieces)

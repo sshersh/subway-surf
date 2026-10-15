@@ -72,6 +72,12 @@ def parse_feed(feed, stations):
         lines.discard("SI")
         header = text_of(a.get("header_text"))
         atype = merc.get("alert_type", "")
+        # skips and suspensions list whole stretches, ends included: keep only the stations the
+        # headline says are skipped or cut (same reading as the re-planner, status/alerts.py)
+        from alerts import affected, entities_of, raw_text, line_order
+        eff, _, hit = affected(atype, raw_text(a.get("header_text")), entities_of(a, stations)[0],
+                               {k: v["n"] for k, v in stations.items()}, sorted(lines), None, line_order())
+        if eff: stops = {st for _, st, _ in hit}
         out.append({"id": e.get("id"), "type": atype, "kind": classify(atype, header), "periods": periods,
                     "lines": sorted(lines), "stops": sorted(stops), "text": header,
                     "planned": str(e.get("id", "")).startswith("lmm:planned") or atype.lower().startswith("planned")})
