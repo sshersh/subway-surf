@@ -172,7 +172,7 @@ def replay(static, net, order, t0, express):
     return t - (first if first >= 0 else t0), missing
 
 
-def follow(static, net, plan, t0, express):
+def follow(static, net, plan, t0, express, trace=None):
     """Ride the route as planned: at each planned boarding station take the first train of the planned
     line that actually gets to the planned alighting station soonest (walking between stations where
     the plan walks). When the line has no such train (service change), get there on any train. Then
@@ -209,8 +209,9 @@ def follow(static, net, plan, t0, express):
         return True
 
     rides, order = plan; replaced = 0
-    for r, b, e in rides:
-        r = rcode(r); b = sid.get(b); e = sid.get(e)
+    for ri, (rname, b, e, *pl) in enumerate(rides):
+        r = rcode(rname); b = sid.get(b); e = sid.get(e)
+        t_in = st["t"]; rep0 = replaced
         if b is None or e is None: continue
         if st["here"] is None: st["here"] = b
         if st["here"] != b:                    # walk (or, if there is no walk, any train) to the boarding station
@@ -235,6 +236,11 @@ def follow(static, net, plan, t0, express):
         else:
             replaced += 1
             leg(e, False)
+        if trace is not None:
+            trace.append({"i": ri, "route": rname, "from": static.meta["names"][b], "to": static.meta["names"][e],
+                          "plan_dep": pl[0] if pl else None, "plan_arr": pl[1] if len(pl) > 1 else None,
+                          "ready": t_in, "dep": int(net.dep_t[best[1]]) if best else None, "arr": st["t"],
+                          "replaced": replaced > rep0, "unvisited": int((~visited).sum())})
     for tgt in list(order) + list(range(n)):
         if not visited[tgt]: leg(tgt, express)
     first = st["first"] if st["first"] >= 0 else int(t0)
@@ -252,7 +258,7 @@ def route_plan(static, path):
         for row in rows:
             i = static.sid.get(row["stop_id"])
             if i is not None and i not in seen: seen.add(i); order.append(i)
-    if r.get("rides"): order = ([x[:3] for x in r["rides"]], order)
+    if r.get("rides"): order = ([x[:5] for x in r["rides"]], order)
     t0 = r.get("t0", sum(int(x) * k for x, k in zip(s["start"].split(":"), (3600, 60, 1))))
     return order, t0, s.get("rules", "local") == "express", s["total_s"]
 
@@ -266,9 +272,9 @@ def stats(vals):
             "p95_h": round(pct(95) / 3600, 3), "buffer_index": round((pct(95) - mean) / mean, 3)}
 
 
-def run(static, net, r, offset):
+def run(static, net, r, offset, trace=None):
     t0 = r["t0"] + 60 * offset
-    if isinstance(r["order"], tuple): return follow(static, net, r["order"], t0, r["express"])
+    if isinstance(r["order"], tuple): return follow(static, net, r["order"], t0, r["express"], trace)
     return replay(static, net, r["order"], t0, r["express"]) + (0,)
 
 
@@ -294,14 +300,21 @@ def main():
         for o in a.offsets:
             tt, miss, rep = run(static, static.net, r, o)
             res[r["label"]]["static"].append(tt)
+    traces = {}
     for d in days:
         f1 = day_files(meta, d); f2 = day_files(meta, (date.fromisoformat(d) + timedelta(days=1)).isoformat())
         if not f1: continue
         net = observed_network(static, date.fromisoformat(d), f1[0], f1[1], *(f2 or (None, None)))
+        rc = {v: k for k, v in ROUTES.items()}
+        sr = collections.Counter(rc[int(x)] for x in static.net.route); orr = collections.Counter(rc[int(x)] for x in net.route)
+        print("   routes static-only:", sorted(set(sr) - set(orr)), "observed-only:", sorted(set(orr) - set(sr)),
+              "connections observed/static by route:", {k: round(orr[k] / max(sr[k] / 2, 1), 2) for k in sorted(sr)}, flush=True)
         print(f"{d}: {len(net.dep_t):,} actual connections, {int(net.served.sum())} stations served", flush=True)
         for r in routes:
             for o in a.offsets:
-                tt, miss, rep = run(static, net, r, o)
+                tr = [] if o == 0 else None
+                tt, miss, rep = run(static, net, r, o, tr)
+                if tr is not None: traces.setdefault(r["label"], {})[d] = tr
                 res[r["label"]]["observed"][d].append(tt); res[r["label"]]["missing"] += miss; res[r["label"]]["replaced"] += rep
             print(f"   {r['label']}: {[round(x/3600, 2) for x in res[r['label']]['observed'][d]]}", flush=True)
     out = {}
@@ -318,6 +331,7 @@ def main():
                            "strategy": "planned rides" if isinstance(r["order"], tuple) else "solver order", "days": days, "offsets_min": a.offsets}
     os.makedirs(a.out, exist_ok=True)
     json.dump(out, open(os.path.join(a.out, "predictability.json"), "w"), indent=1)
+    json.dump(traces, open(os.path.join(a.out, "predictability_trace.json"), "w"), separators=(",", ":"))
     L = ["# Route predictability on real days", "",
          f"Each route is ridden as planned: same lines, same boarding and alighting stations, same walks, taking the "
          f"first train of the planned line that actually gets there (any train if the line is not running), then any "
