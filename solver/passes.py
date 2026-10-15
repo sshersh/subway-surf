@@ -26,7 +26,7 @@ seq = collections.defaultdict(list)
 wk = set(meta["trip_ids"])
 for r in L("stop_times"):
     if r["trip_id"] in wk:
-        seq[r["trip_id"]].append((int(r["stop_sequence"]), parent[r["stop_id"]]))
+        seq[r["trip_id"]].append((int(r["stop_sequence"]), parent[r["stop_id"]]))   # full GTFS stop lists, before any service changes
 seqs = {t: [p for _, p in sorted(v)] for t, v in seq.items()}
 
 # candidate intermediates for every pair (A, B) that some trip visits with stops in between

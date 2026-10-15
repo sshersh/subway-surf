@@ -1,26 +1,42 @@
-name: Service status and site
+name: Service status, re-plan and site
 
-# Every 15 minutes: pull MTA subway alerts, check them against the planned route,
-# and redeploy the GitHub Pages site with a fresh status.json for the banner.
+# Every 15 minutes: pull MTA subway alerts, check them against the planned route, and re-plan the
+# route around skipped stops, suspensions and closures whenever those change. Then redeploy the
+# GitHub Pages site with status.json (banner), replan.json and the re-planned routes.
+#
+# A re-plan only runs when the modeled service changes differ from the last solved set (same hash →
+# the cached route is reused), so most runs take about a minute. A re-plan takes about 12 minutes.
 on:
   schedule:
     - cron: "*/15 * * * *"
   push:
-    branches: [main]
+    branches: [main, replan-around-alerts]
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Re-plan even if the service changes haven't changed"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# queue rather than cancel, so a run that is re-planning finishes and deploys
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+env:
+  FEED: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json
+  REPLAN_MINUTES: "8"   # annealing time per re-plan; local and express run side by side
+  REPLAN_PROCS: "2"     # parallel annealing runs per rules (runners have 4 cores on public repos)
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -29,21 +45,110 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Check MTA alerts against the route
+          cache: pip
+
+      - name: Fetch MTA alerts
+        id: feed
+        run: |
+          if curl -fsS --retry 3 --max-time 60 -A "subway-surf-status/1.0" -o alerts.json "$FEED"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check alerts against the route (banner)
         run: |
           mkdir -p _site/viewer
-          python3 status/check_status.py --out _site/status.json || \
-            python3 -c "import json,time; json.dump({'checked_at':int(time.time()),'verdict':'unknown','now':[],'next_run':{'issues':[]}},open('_site/status.json','w'))"
-          cp _site/status.json _site/viewer/status.json
-          if [ -f results/best_route_express.json ]; then
-            python3 status/check_status.py --route results/best_route_express.json --out _site/status_express.json || true
-            [ -f _site/status_express.json ] && cp _site/status_express.json _site/viewer/status_express.json
+          unknown='import json,time,sys; json.dump({"checked_at":int(time.time()),"verdict":"unknown","now":[],"next_run":{"issues":[]}},open(sys.argv[1],"w"))'
+          if [ "${{ steps.feed.outputs.ok }}" = "true" ]; then
+            python3 status/check_status.py --feed alerts.json --out _site/status.json || python3 -c "$unknown" _site/status.json
+            python3 status/check_status.py --feed alerts.json --route results/best_route_express.json --out _site/status_express.json || true
+          else
+            python3 -c "$unknown" _site/status.json
           fi
+
+      - name: Work out service changes to plan around
+        id: changes
+        if: steps.feed.outputs.ok == 'true'
+        run: |
+          python3 status/alerts.py --feed alerts.json --out changes.json
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json; c = json.load(open("changes.json"))
+          print(f"hash={c['hash']}"); print(f"count={len(c['changes'])}")
+          EOF
+
+      - name: Restore the last re-plan
+        id: cache
+        if: steps.changes.outputs.count > 0
+        uses: actions/cache/restore@v4
+        with:
+          path: replan
+          key: replan-v1-${{ steps.changes.outputs.hash }}
+          restore-keys: replan-v1-
+
+      - name: Get the GTFS timetable
+        if: steps.changes.outputs.count > 0 && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
+        run: |
+          npm pack mta-gtfs-static --silent
+          mkdir -p gtfs && tar xzf mta-gtfs-static-*.tgz -C gtfs
+          python3 -c "import zipfile; zipfile.ZipFile('gtfs/package/gtfs_json.zip').extractall('gtfs')"
+          pip install -r requirements.txt
+
+      - name: Re-plan the route around the changes
+        id: replan
+        if: steps.changes.outputs.count > 0 && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
+        continue-on-error: true
+        run: |
+          python3 solver/replan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out replan_new \
+            --prev replan --minutes "$REPLAN_MINUTES" --procs "$REPLAN_PROCS"
+          rm -rf replan && mv replan_new replan
+
+      - name: Note a failed re-plan
+        if: steps.replan.outcome == 'failure'
+        run: |
+          rm -rf replan && mkdir -p replan
+          python3 - <<'EOF'
+          import json, time
+          c = json.load(open("changes.json"))
+          json.dump({"run_date": c["run_date"], "hash": c["hash"], "solved_at": int(time.time()), "changes": c["changes"],
+                     "not_modeled": c["not_modeled"], "dropped": [], "rules": {},
+                     "error": "The solver failed on this run; it will try again when the alerts next change."},
+                    open("replan/replan.json", "w"), indent=1)
+          EOF
+
+      - name: Save the re-plan
+        if: steps.replan.outcome == 'success' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: replan
+          key: replan-v1-${{ steps.changes.outputs.hash }}
+        continue-on-error: true   # a forced re-plan can't overwrite an existing cache entry
+
+      - name: No changes to plan around
+        if: steps.feed.outputs.ok == 'true' && steps.changes.outputs.count == '0'
+        run: |
+          rm -rf replan && mkdir -p replan
+          python3 - <<'EOF'
+          import json
+          c = json.load(open("changes.json"))
+          json.dump({"run_date": c["run_date"], "hash": c["hash"], "solved_at": c["generated_at"], "changes": [],
+                     "not_modeled": c["not_modeled"], "dropped": [], "rules": {}}, open("replan/replan.json", "w"), indent=1)
+          EOF
+
       - name: Assemble site
         run: |
           cp viewer/index.html _site/index.html
           cp viewer/index.html _site/viewer/index.html
+          [ -f _site/status_express.json ] && cp _site/status_express.json _site/viewer/
+          cp _site/status.json _site/viewer/status.json
+          if [ -f replan/replan.json ]; then
+            for f in replan/replan.json replan/current_route*.json; do
+              [ -f "$f" ] && cp "$f" _site/ && cp "$f" _site/viewer/
+            done
+          fi
           touch _site/.nojekyll
+          ls -la _site
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

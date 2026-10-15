@@ -1,16 +1,22 @@
 """Check an exported route against the raw GTFS feed, independently of the solver's model.
 
-    python3 verify.py <gtfs_json_dir> <route.json> [--express]
+    python3 verify.py <gtfs_json_dir> <route.json> [--express] [--changes changes.json]
 
 Checks: every train hop (stop -> next stop on a route at an arrival time) exists in the weekday
 schedule; times never go backwards; every required station is reached by a train that stops there
 (local rules) or that stops at or passes through it (express rules: the passed station must lie
 between the hop's two stops on some other weekday trip); walks are between nearby stations.
+With --changes, skipped and cut stops (service.py) are applied first: hops must exist in the
+changed timetable, and stations no train stops at any more aren't required.
 """
 import json, sys, math, collections
 
 SRC, ROUTE = sys.argv[1], sys.argv[2]
 EXPRESS = "--express" in sys.argv
+CHANGES = None
+if "--changes" in sys.argv:
+    from service import Changes
+    CHANGES = Changes(sys.argv[sys.argv.index("--changes") + 1])
 L = lambda n: json.load(open(f"{SRC}/{n}.json"))
 stops = {s["stop_id"]: s for s in L("stops")}
 parent = {k: (v["parent_station"] or k) for k, v in stops.items()}
@@ -19,15 +25,18 @@ ts = lambda x: sum(int(a) * k for a, k in zip(x.split(":"), (3600, 60, 1)))
 seq = collections.defaultdict(list)
 for r in L("stop_times"):
     if r["trip_id"] in wk: seq[r["trip_id"]].append(r)
-hops, between = set(), collections.defaultdict(set)
+hops, between, served = set(), collections.defaultdict(set), set()
 for tid, v in seq.items():
     v.sort(key=lambda r: int(r["stop_sequence"])); ps = [parent[r["stop_id"]] for r in v]
-    for a, b in zip(v, v[1:]):
-        for off in (0, 86400):
-            hops.add((wk[tid], parent[a["stop_id"]], parent[b["stop_id"]], ts(b["arrival_time"]) + off))
+    st = [(int(r["stop_sequence"]), parent[r["stop_id"]], ts(r["arrival_time"]), ts(r["departure_time"]), r["stop_id"]) for r in v]
+    for day, off in ((0, 0), (1, 86400)):
+        pieces = CHANGES.apply(st, wk[tid], day)[0] if CHANGES else [st]
+        for pc in pieces:
+            for a, b in zip(pc, pc[1:]):
+                hops.add((wk[tid], a[1], b[1], b[2] + off))
+            served.update(x[1] for x in pc)
     for i in range(len(ps)):
         for j in range(i + 2, min(len(ps), i + 25)): between[(ps[i], ps[j])].update(ps[i + 1:j])
-served = {parent[r["stop_id"]] for v in seq.values() for r in v}
 rows = json.load(open(ROUTE))["rows"]
 bad_hops, bad_pass, walks = [], [], []
 stopped, passed = set(), set()

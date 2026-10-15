@@ -108,7 +108,12 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
 .status li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;color:var(--ink)}
 .status li .bullets{flex-wrap:nowrap}
 .status li small{display:block;color:var(--muted)}
+.status .replan{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;color:var(--ink)}
+.status .linkbtn{background:none;border:0;padding:0;font:600 .84rem var(--f-body);color:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.status .linkbtn:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 .status .tag{font:700 .66rem var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:3px;margin-right:6px;vertical-align:1px}
+.tag.blocked,.tag.cut{background:var(--bad);color:var(--bad-bg)} .tag.skip{background:var(--warn);color:var(--warn-bg)}
+.delta.now{color:var(--warn)}
 .tag.blocked{background:var(--bad);color:var(--bad-bg)} .tag.possible{background:var(--warn);color:var(--warn-bg)} .tag.delay{background:var(--muted);color:var(--surface)}
 @media (max-width:820px){
   .app{grid-template-columns:1fr;height:auto}
@@ -373,28 +378,31 @@ function fitRoute(){
 const RUNS = (D.runs && D.runs.length) ? D.runs
   : Object.entries(D.solutions || {local: D.solution}).map(([rules, route]) => ({id: rules, rules, label: 'Best found', route, total_s: route.stats.total_s}));
 const runsFor = m => RUNS.filter(r => r.rules === m);
-const bestFor = m => runsFor(m).reduce((a, b) => (!a || b.total_s < a.total_s) ? b : a, null);
+// the route re-planned around current service changes (replan.json, GitHub Pages only) is never "best"
+const bestFor = m => runsFor(m).filter(r => !r.current).reduce((a, b) => (!a || b.total_s < a.total_s) ? b : a, null);
 let MODE = 'local';
 try { const m = localStorage.getItem('subway-mode'); if (m && runsFor(m).length) MODE = m; } catch(e){}
 if (!runsFor('express').length) $('mode').querySelector('[value=express]').disabled = true;
 $('mode').value = MODE;
-const RUNSEL = {};
+const RUNSEL = {}, USERPICK = {};
 const curRun = () => runsFor(MODE).find(r => r.id === RUNSEL[MODE]) || bestFor(MODE);
 const curSol = () => curRun().route;
 const isBest = () => curRun() === bestFor(MODE);
+const onCurrent = () => !!curRun().current;
 const solName = () => `${isBest() ? 'Best found' : curRun().label} (${MODE}): ${curSol().stats.start_station} → ${curSol().stats.end_station}`;
 const fmtDate = iso => { try { return new Date(iso).toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}); } catch(e){ return ''; } };
 function fillRuns(){
-  const list = runsFor(MODE).slice().sort((a, b) => (b.created || '').localeCompare(a.created || ''));
+  const list = runsFor(MODE).slice().sort((a, b) => (b.current|0) - (a.current|0) || (b.created || '').localeCompare(a.created || ''));
   const best = bestFor(MODE);
   $('runpick').hidden = list.length < 2;
-  $('run').innerHTML = list.map(r => `<option value="${r.id}">${dur(r.total_s)} · ${r.created ? fmtDate(r.created) + ' · ' : ''}${r.label}${r === best ? ' ★ best' : ''}</option>`).join('');
+  $('run').innerHTML = list.map(r => `<option value="${r.id}">${dur(r.total_s)} · ${r.created ? fmtDate(r.created) + ' · ' : ''}${r.label}${r === best ? ' ★ best' : r.current ? ' · now' : ''}</option>`).join('');
   $('run').value = curRun().id;
   const r = curRun();
   $('runnote').textContent = [r.method, r.transfers ? `Transfers: ${r.transfers}` : '', r.start_fixed ? `Start fixed at ${r.start_fixed}` : ''].filter(Boolean).join(' · ');
 }
-$('run').onchange = () => { RUNSEL[MODE] = $('run').value; loadMode(); };
-function loadMode(){ fillRuns(); $('paste').value = ''; load(solName(), curSol().rows, true, curSol()); lastStatus = null; loadStatus(); }
+$('run').onchange = () => { RUNSEL[MODE] = $('run').value; USERPICK[MODE] = true; loadMode(); };
+let loadedRun = null;
+function loadMode(skipStatus){ fillRuns(); $('paste').value = ''; loadedRun = curRun(); load(solName(), curSol().rows, true, curSol()); lastStatus = null; if (!skipStatus) loadStatus(); }
 $('mode').onchange = () => { MODE = $('mode').value; try { localStorage.setItem('subway-mode', MODE); } catch(e){} loadMode(); };
 const secs = v => v.split(':').reduce((a,x)=>a*60+ +x, 0);
 let ITIN = [], lastOn = -1;
@@ -408,8 +416,10 @@ function renderSol(sol){
   $('split').innerHTML = parts.map(p => `<i style="background:${p[2]}" title="${p[0]}"></i>`).join('');
   $('splitkey').innerHTML = parts.map(p => `<span><i style="background:${p[2]}"></i>${p[0]} ${dur(p[1])}</span>`).join('');
   $('facts').innerHTML = [
-    ['Total', `${dur(s.total_s)} (h:mm)` + (() => { const b = bestFor(MODE); if (!b || RUNS.length < 2) return ''; const d = s.total_s - b.total_s; return d > 0 ? ` <span class="delta worse">+${dur(d)} vs best</span>` : ' <span class="delta best">best run</span>'; })()], ['Start', `${s.start_station}, ${hhmm(secs(s.start))}`], ['Finish', `${s.end_station}, ${hhmm(secs(s.end))}`],
-    ['Rules', s.rules === 'express' ? 'Express: passing through counts' : 'Local: the train must stop'], ['Trains', `${s.rides} boardings`], ['Walks', `${s.walks} station-to-station`], ['Stations', `${s.stations} of ${TOTAL}${s.passed_only ? `, ${s.passed_only} only passed through` : ''}`]
+    ['Total', `${dur(s.total_s)} (h:mm)` + (() => {
+      const c = sol.conditions; if (c && c.normal_s != null){ const d = s.total_s - c.normal_s; return d > 0 ? ` <span class="delta now">+${dur(d)} vs normal plan</span>` : d < 0 ? ` <span class="delta now">${dur(-d)} under normal plan</span>` : ' <span class="delta now">same as normal plan</span>'; }
+      const b = bestFor(MODE); if (!b || RUNS.length < 2) return ''; const d = s.total_s - b.total_s; return d > 0 ? ` <span class="delta worse">+${dur(d)} vs best</span>` : ' <span class="delta best">best run</span>'; })()], ['Start', `${s.start_station}, ${hhmm(secs(s.start))}`], ['Finish', `${s.end_station}, ${hhmm(secs(s.end))}`],
+    ['Rules', s.rules === 'express' ? 'Express: passing through counts' : 'Local: the train must stop'], ['Trains', `${s.rides} boardings`], ['Walks', `${s.walks} station-to-station`], ['Stations', `${s.stations} of ${TOTAL}${s.passed_only ? `, ${s.passed_only} only passed through` : ''}${sol.conditions && TOTAL > s.stations ? `; ${TOTAL - s.stations} without service left out` : ''}`]
   ].map(([a,b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
   $('itlabel').textContent = `Itinerary · ${sol.itin.length} legs`;
   ITIN = sol.itin.map(L => ({...L, s0: secs(L.t0)}));
@@ -425,7 +435,7 @@ function markLeg(){
   lastOn = k;
 }
 const sampleCSV = () => 'stop_id,time,route,pass\n' + curSol().rows.map(r => `${r.stop_id},${r.time},${r.route},${r.pass ? 1 : ''}`).join('\n');
-$('loadSample').onclick = loadMode;
+$('loadSample').onclick = () => loadMode();
 $('loadPaste').onclick = () => { if (!$('paste').value.trim()){ $('err').hidden=false; $('err').textContent='Paste a route first, or open a file.'; return; } try { load('Pasted route', parse($('paste').value)); } catch(e){ $('err').hidden=false; $('err').textContent = 'Could not read that input: ' + e.message; } };
 $('file').onchange = e => { const fl = e.target.files[0]; if (!fl) return; const rd = new FileReader(); rd.onload = () => { $('paste').value = rd.result; try { load(fl.name, parse(rd.result)); } catch(err){ $('err').hidden=false; $('err').textContent='Could not read that file: '+err.message; } }; rd.readAsText(fl); e.target.value=''; };
 $('copySample').onclick = () => { const txt = sampleCSV(); navigator.clipboard.writeText(txt).then(() => { $('copySample').textContent='Copied'; setTimeout(()=>$('copySample').textContent='Copy solved route CSV',1500); }).catch(() => { $('paste').value = txt; $('paste').focus(); $('paste').select(); }); };
@@ -441,9 +451,10 @@ function update(){
   $('play').textContent = playing ? 'Pause' : (R && now>=R.t1 ? 'Replay' : 'Play');
   if (!R) return;
   let v=0; for (const t of R.first.values()) if (t<=now) v++;
-  $('sVisited').textContent = v; $('sTotal').textContent = `of ${TOTAL} stations`;
-  $('sLeft').textContent = TOTAL - v; $('sElapsed').textContent = dur(now - R.t0);
-  $('pbar').style.width = (v/TOTAL*100)+'%';
+  const need = TOTAL - (onCurrent() && loadedRun === curRun() ? DROPPED.size : 0);   // stations without service aren't required
+  $('sVisited').textContent = v; $('sTotal').textContent = `of ${need} stations` + (need < TOTAL ? ' in service' : '');
+  $('sLeft').textContent = Math.max(0, need - v); $('sElapsed').textContent = dur(now - R.t0);
+  $('pbar').style.width = Math.min(100, v/need*100)+'%';
   $('clock').textContent = hhmm(now);
   const s = curSeg(); $('leg').textContent = !s ? '' : now>=R.t1 ? 'Finished' : s.walk ? `Walking to ${s.b.st.n}` : s.a.st===s.b.st ? `Waiting at ${s.a.st.n}` : `${s.route} train to ${s.b.st.n}`;
   $('scrub').value = Math.round((now-R.t0)/(R.t1-R.t0||1)*1000);
@@ -557,7 +568,7 @@ function showStation(s){
   $('stname').textContent = s.n;
   $('stbul').innerHTML = s.r.map(id => { const r=routeById[id]; const lab = id.replace('X','').replace('GS','S').replace('FS','S').replace('H','S'); return `<span class="bul" title="${r.name}" style="background:${r.c};color:${DARK_TEXT.has(id)?'#111':'#fff'}">${lab}</span>`; }).join('');
   const vt = R && R.first.get(s.id);
-  $('stinfo').textContent = SIR.has(s.id) ? 'Staten Island Railway: not part of the challenge.' : !R ? '' : vt===undefined ? 'This route never reaches this station.' : (() => { const fr = R.firstRow.get(s.id), how = fr && fr.pass ? `Passed through without stopping on the ${fr.route.replace('X','')}` : 'Reached'; return vt<=now ? `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run.` : `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run (not yet).`; })();
+  $('stinfo').textContent = SIR.has(s.id) ? 'Staten Island Railway: not part of the challenge.' : !R ? '' : vt===undefined ? (onCurrent() && DROPPED.has(s.id) ? 'No trains stop here under current service changes, so the re-planned route leaves it out.' : 'This route never reaches this station.') : (() => { const fr = R.firstRow.get(s.id), how = fr && fr.pass ? `Passed through without stopping on the ${fr.route.replace('X','')}` : 'Reached'; return vt<=now ? `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run.` : `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run (not yet).`; })();
 }
 
 /* ---------- live service status (status.json is written by the scheduled GitHub Action) ---------- */
@@ -571,15 +582,70 @@ function itemHTML(i){
   const label = {blocked:'Blocks route', possible:'May affect', delay:'Delays'}[i.kind];
   return `<li>${bullets(i.lines||[])}<span><span class="tag ${i.kind}">${label}</span>${esc(i.text || i.type)}<small>${where}</small></span></li>`;
 }
+/* ---------- re-planned route (replan.json + current_route*.json, written by the same Action) ---------- */
+let REPLAN = null, DROPPED = new Set();
+const dayFmt = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m-1, dd).toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}); };
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+let replanBusy = null;
+const loadReplan = () => replanBusy || (replanBusy = fetchReplan().finally(() => { replanBusy = null; }));
+async function fetchReplan(){
+  let p;
+  try { const r = await fetch('replan.json?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) return false; p = await r.json(); }
+  catch(e){ return false; }
+  if (REPLAN && p.hash === REPLAN.hash && p.solved_at === REPLAN.solved_at && !p.error === !REPLAN.error) return false;
+  for (const m of ['local', 'express']){
+    const i = RUNS.findIndex(x => x.id === 'current-' + m); if (i >= 0) RUNS.splice(i, 1);
+    const info = p.rules && p.rules[m];
+    if (p.error || !(p.changes || []).length || !info || !info.route || info.verify !== 'PASS') continue;
+    try {
+      const r = await fetch(info.route + '?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) continue;
+      const route = await r.json();
+      RUNS.push({id: 'current-' + m, rules: m, current: true, label: 'Current conditions', created: new Date(p.solved_at * 1000).toISOString(),
+        method: `Re-planned around ${plural(p.changes.length, 'service change')} for ${dayFmt(p.run_date)}`, transfers: '1 min', route, total_s: route.stats.total_s});
+    } catch(e){}
+  }
+  REPLAN = p; DROPPED = new Set((p.dropped || []).map(d => d.id));
+  $('mode').querySelector('[value=express]').disabled = !runsFor('express').length;
+  return true;
+}
+function whenText(c){
+  if (c.when === 'always') return 'Active now; assumed to last the whole run.';
+  return c.when.map(([a, b]) => `${etFmt.format(new Date(a*1000))}–${etFmt.format(new Date(b*1000))}`).join(', ') + ' ET.';
+}
+function changeHTML(c){
+  const names = (c.station_names || c.stops).join(', ');
+  return `<li>${bullets(c.lines || [])}<span><span class="tag ${c.effect}">${c.effect === 'cut' ? 'No service' : 'Skipped'}</span>${esc(c.text || c.type)}<small>${c.effect === 'cut' ? 'No trains' : "Trains don't stop"} at ${esc(names)}${c.lines && c.lines.length ? '' : ' (all lines)'}. ${whenText(c)}</small></span></li>`;
+}
+function replanHTML(){
+  const p = REPLAN; if (!p) return '';
+  if (p.error) return `<div class="replan">Couldn't re-plan around the latest service changes, so no adjusted route is shown. ${esc(p.error)}</div>`;
+  const n = (p.changes || []).length;
+  if (!n) return `<div class="replan">No skipped stops, suspensions or closures to plan around for ${dayFmt(p.run_date)}. The normal plan stands.</div>`;
+  const info = (p.rules || {})[MODE], cur = runsFor(MODE).find(r => r.current), best = bestFor(MODE);
+  let txt = `Re-planned around ${plural(n, 'service change')} for a run on ${dayFmt(p.run_date)}`;
+  if (cur && info){
+    const d = info.normal_s == null ? null : info.total_s - info.normal_s;
+    txt += `: ${dur(info.total_s)}` + (d == null ? '' : d > 0 ? ` (+${dur(d)} vs the normal plan)` : d < 0 ? ` (${dur(-d)} faster, with fewer stations to reach)` : ', no slower than the normal plan') + '.';
+  } else txt += ', but no adjusted route is available for these rules.';
+  const drop = (p.dropped || []).length ? ` ${p.dropped.length === 1 ? 'One station has' : p.dropped.length + ' stations have'} no service and ${p.dropped.length === 1 ? 'is' : 'are'} left out: ${esc(p.dropped.map(d => d.name).join(', '))}.` : '';
+  const btn = cur ? `<button class="linkbtn" data-run="${onCurrent() ? best.id : cur.id}">${onCurrent() ? 'Show the normal plan' : 'Show the re-planned route'}</button>` : '';
+  const nm = (p.not_modeled || []).length ? `<small>${plural(p.not_modeled.length, 'other alert')} (reroutes, delays, or no stations named) can't be planned around.</small>` : '';
+  return `<div class="replan"><span>${esc(txt)}${drop}</span>${btn}</div>${nm}<details><summary>${plural(n, 'change')} the re-planned route avoids</summary><ul>${p.changes.map(changeHTML).join('')}</ul></details>`;
+}
+$('status').addEventListener('click', e => { const b = e.target.closest('.linkbtn'); if (!b) return; RUNSEL[MODE] = b.dataset.run; USERPICK[MODE] = true; loadMode(); });
+
 function renderStatus(s){
   const box = $('status'), age = Date.now()/1000 - s.checked_at, stale = age > 2*3600;
   const nowBad = s.now.filter(i => i.kind !== 'delay'), delays = s.now.filter(i => i.kind === 'delay');
   const plan = (s.next_run && s.next_run.issues) || [];
-  const head = {blocked:"The route can't run as planned right now", possible:'Service changes may break the route right now',
-                delays:'Delays on lines the route uses', ok:'No service changes affect the route right now'}[s.verdict] || 'Service status';
-  box.className = 'status ' + (s.verdict === 'blocked' ? 'bad' : s.verdict === 'ok' && !plan.length ? 'ok' : 'warn');
+  const head = (onCurrent() ? {blocked:"Service changes block the normal plan; this route is re-planned around them", possible:'Service changes may break the normal plan',
+                delays:'Delays on lines the plan uses', ok:'No service changes affect the normal plan right now'}
+              : {blocked:"The route can't run as planned right now", possible:'Service changes may break the route right now',
+                delays:'Delays on lines the route uses', ok:'No service changes affect the route right now'})[s.verdict] || 'Service status';
+  // viewing the re-planned route: it runs, so a block on the normal plan is a warning here
+  box.className = 'status ' + (s.verdict === 'blocked' && !onCurrent() ? 'bad' : s.verdict === 'ok' && !plan.length ? 'ok' : 'warn');
   const when = `Checked ${etFmt.format(new Date(s.checked_at*1000))} ET${stale ? ` · ${Math.round(age/3600)} h old, may be out of date` : ''}`;
-  let html = `<div class="head"><strong>${head}</strong><span class="when">${when}</span></div>`;
+  let html = `<div class="head"><strong>${head}</strong><span class="when">${when}</span></div>` + replanHTML();
   const list = [...nowBad, ...delays];
   if (list.length) html += `<details ${s.verdict === 'blocked' ? 'open' : ''}><summary>${list.length} current alert${list.length===1?'':'s'}</summary><ul>${list.map(itemHTML).join('')}</ul></details>`;
   if (plan.length){
@@ -590,7 +656,14 @@ function renderStatus(s){
 }
 let lastStatus = null;
 async function loadStatus(){
-  if (!isBest()){ $('status').hidden = true; return; }
+  if (await loadReplan()){
+    // a new re-plan arrived: show it unless the reader picked a run themselves
+    const cur = runsFor(MODE).find(r => r.current);
+    if (!USERPICK[MODE]) RUNSEL[MODE] = cur ? cur.id : undefined;
+    if (!runsFor(MODE).some(r => r.id === RUNSEL[MODE])) RUNSEL[MODE] = undefined;
+    if (curRun() !== loadedRun && W) loadMode(true); else fillRuns();
+  }
+  if (!isBest() && !onCurrent()){ $('status').hidden = true; return; }
   try { const r = await fetch((MODE === 'express' ? 'status_express.json' : 'status.json') + '?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) throw new Error(r.status); renderStatus(await r.json()); }
   catch(e){ $('status').hidden = true; /* no status file here (e.g. not the GitHub Pages copy) */ }
 }

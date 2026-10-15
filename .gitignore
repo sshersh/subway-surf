@@ -7,3 +7,8 @@ run_*.npy
 __pycache__/
 _site/
 viewer/status.json
+replan/
+replan_new/
+changes.json
+alerts.json
+mta-gtfs-static-*.tgz

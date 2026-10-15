@@ -5,11 +5,21 @@ Output (model.npz + model.json):
   footpaths (CSR): walking links and GTFS inter-station transfers
   change time per station, station list, trip -> route
 Two consecutive service days are included so a run can pass midnight.
+
+    python3 model.py <gtfs_json_dir> <out> [--changes changes.json]
+
+With --changes (from status/alerts.py), skipped and cut stops are applied to each service day
+(see service.py). Stations no train stops at are then left out, so the route doesn't need them;
+meta["dropped"] lists them.
 """
 import json, math, sys, collections
 import numpy as np
 
 SRC, OUT = sys.argv[1], sys.argv[2]
+CHANGES = None
+if "--changes" in sys.argv:
+    from service import Changes
+    CHANGES = Changes(sys.argv[sys.argv.index("--changes") + 1])
 L = lambda n: json.load(open(f"{SRC}/{n}.json"))
 stops, trips, transfers = L("stops"), L("trips"), L("transfers")
 stop_times = L("stop_times")
@@ -28,27 +38,48 @@ def tsec(t):
     h, m, s = map(int, t.split(":")); return h * 3600 + m * 60 + s
 for st in stop_times:
     if st["trip_id"] in trip_info:
-        seqs[st["trip_id"]].append((int(st["stop_sequence"]), parent[st["stop_id"]], tsec(st["arrival_time"]), tsec(st["departure_time"])))
+        seqs[st["trip_id"]].append((int(st["stop_sequence"]), parent[st["stop_id"]], tsec(st["arrival_time"]), tsec(st["departure_time"]), st["stop_id"]))
+for v in seqs.values(): v.sort()
+base_served = set(p for v in seqs.values() for _, p, _, _, _ in v)
 
-served = set(p for v in seqs.values() for _, p, _, _ in v)
+# runnable trips per service day: (day, gtfs trip id, stop times)
+runs, nskip, ncut = [], 0, 0
+for day in (0, 1):
+    for t in sorted(seqs):
+        if CHANGES:
+            pieces, k, c = CHANGES.apply(seqs[t], trip_info[t]["route_id"], day); nskip += k; ncut += c
+        else:
+            pieces = [seqs[t]]
+        runs.extend((day, t, p) for p in pieces)
+if CHANGES:
+    print(f"service changes: {nskip} stop times skipped, {ncut} cut")
+served = set(p for _, _, v in runs for _, p, _, _, _ in v)
 stations = [s for s in stops if s["location_type"] == "1" and s["stop_id"] in served]
 sid = {s["stop_id"]: i for i, s in enumerate(stations)}
 N = len(stations)
 all_parents = set(s["stop_id"] for s in stops if s["location_type"] == "1" and not s["stop_id"].startswith("S"))
 print("weekday-served stations", N, "of", len(all_parents), "missing:", sorted(all_parents - served))
+dropped = sorted(base_served - served)
+if dropped:
+    print("no train stops at (left out of the route):", dropped)
 
-trip_ids = sorted(seqs)
-tix = {t: i for i, t in enumerate(trip_ids)}
-T = len(trip_ids)
+if CHANGES:
+    # trips differ by day (and may be split): number every runnable piece; trip_ids holds its GTFS trip
+    trip_ids = [t for _, t, _ in runs]
+    T = len(runs)
+    run_ix = list(range(T))
+else:
+    trip_ids = sorted(seqs)
+    tix = {t: i for i, t in enumerate(trip_ids)}
+    T = len(trip_ids)
+    run_ix = [tix[t] + day * T for day, t, _ in runs]
 route_of_trip = [trip_info[t]["route_id"] for t in trip_ids]
 
 conns = []  # (dep_t, arr_t, dep_stop, arr_stop, trip)
-for day in (0, 1):
+for (day, t, v), ix in zip(runs, run_ix):
     off = day * 86400
-    for t in trip_ids:
-        v = sorted(seqs[t])
-        for a, b in zip(v, v[1:]):
-            conns.append((a[3] + off, b[2] + off, sid[a[1]], sid[b[1]], tix[t] + day * T))
+    for a, b in zip(v, v[1:]):
+        conns.append((a[3] + off, b[2] + off, sid[a[1]], sid[b[1]], ix))
 conns.sort()
 C = np.array(conns, dtype=np.int64)
 dep_t, arr_t, dep_s, arr_s, trip = (C[:, i].copy() for i in range(5))
@@ -112,14 +143,15 @@ np.savez(OUT + ".npz", dep_t=dep_t, arr_t=arr_t, dep_s=dep_s, arr_s=arr_s, trip=
          chg=chg, fp_ptr=fp_ptr, fp_to=np.array(fp_to, dtype=np.int64), fp_t=np.array(fp_t, dtype=np.int64),
          lat=lat, lon=lon)
 json.dump({"stations": [s["stop_id"] for s in stations], "names": [s["stop_name"] for s in stations],
-           "trip_route": route_of_trip, "trip_ids": trip_ids, "T": T,
+           "trip_route": route_of_trip, "trip_ids": trip_ids, "T": T, "dropped": dropped,
+           "changes": CHANGES.raw.get("hash") if CHANGES else None,
            "params": dict(WALK_SPEED=WALK_SPEED, DETOUR=DETOUR, WALK_MAX=WALK_MAX, WALK_OVERHEAD=WALK_OVERHEAD, DEFAULT_CHANGE=DEFAULT_CHANGE)},
           open(OUT + ".json", "w"))
 print("trips", T, "connections", len(C), "footpaths", len(fp_to), "(generated walks", nwalk, ")")
 
 # line keys (route, direction) per trip, used by the line-aware seed and solver
-keys = sorted({(trip_info[t]["route_id"], trip_info[t]["direction_id"]) for t in trip_ids})
+keys = sorted({(trip_info[t]["route_id"], trip_info[t]["direction_id"]) for t in set(trip_ids)})
 kid = {k: i for i, k in enumerate(keys)}
-tk = np.array([kid[(trip_info[t]["route_id"], trip_info[t]["direction_id"])] for t in trip_ids] * 2)
+tk = np.array([kid[(trip_info[t]["route_id"], trip_info[t]["direction_id"])] for t in trip_ids] * (1 if CHANGES else 2))
 np.save(OUT + "_tkey.npy", tk)
 json.dump([list(k) for k in keys], open(OUT + "_keys.json", "w"))

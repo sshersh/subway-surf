@@ -71,26 +71,36 @@ To replay the saved best routes, run `python3 export.py ../results/best_solution
 
 The MTA's own feed is at <https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip> (CSV). The scripts expect the JSON export, but each file has the same columns.
 
-## Live service status
+## Live service status and re-planning
 
-`.github/workflows/status.yml` runs every 15 minutes (GitHub may delay scheduled runs). It downloads the MTA subway alerts feed, then runs `status/check_status.py` to compare each alert with every stop the route needs on each line. It then redeploys GitHub Pages with a fresh `status.json`, and the page shows a banner at the top:
+`.github/workflows/status.yml` runs every 15 minutes (GitHub may delay scheduled runs). It downloads the MTA subway alerts feed once and does two things with it.
+
+**Banner.** `status/check_status.py` compares each alert with every stop the saved best route needs on each line, and writes `status.json`. The page shows it as a banner at the top:
 
 - **Blocks route** (red): an active suspension, skipped stops or express run hits a station the plan needs on that line.
 - **May affect** (amber): a disruption on a line the plan uses, where the alert names no stations.
 - **Delays**: delays on a line the plan uses. The route's timing assumes trains run on time.
 - **Planned work during the next run**: planned alerts that overlap a leg's clock time if the run started at its scheduled time on the next weekday.
 
-The banner is only shown where a `status.json` sits next to the page, so it's on GitHub Pages but not in a local copy. For this to work, set **Settings → Pages → Source** to **GitHub Actions**.
+**Re-planned route.** `status/alerts.py` turns alerts that name stations into service changes:
 
-## Fixed start and finish (trials)
+- **Skip**: trains on the named lines run but don't stop there (skipped stops, express runs).
+- **Cut**: trains don't run through there at all (suspensions, closures). The trip is split at that point, so you can't ride through.
 
-By default the solver chooses its own start and finish. To try a specific pair, give the planner `--start <idx> --end <idx>` and anneal with `solver/ends.py`. The route then starts on that platform (waiting there counts) and is only done once everything is covered and you've arrived at the finish by train. Export with `export.py … --end <idx>`. Station indices are positions in `model.json`'s `stations` list.
+Changes apply to the next weekday after today. Unplanned alerts that are active now are assumed to last the whole run; planned work applies only during its posted hours. Reroutes, delays and alerts that name no stations can't be modeled, so they appear only in the banner.
+
+`solver/replan.py` rebuilds the timetable with the changes applied (`model.py --changes`, via `solver/service.py`). Stations no train stops at are left out of the challenge. It replays the saved best route, and the last re-plan, against the changed timetable. If neither gets slower, the route is kept as it is. Otherwise it adds a fresh line-aware seed and anneals for 8 minutes, with local and express rules in parallel. The result is checked by `verify.py --changes` against the same changed timetable.
+
+A re-plan runs only when the set of changes changes; their hash covers effect, lines, stations, times and run day, not alert wording. Each re-plan is cached under that hash, so most runs take about a minute and a re-plan about 12. The site gets `replan.json` and `current_route.json`/`current_route_express.json`. The page then opens on the re-planned route ("Current conditions" in the run picker, compared with the normal plan). The banner says what it avoids and which stations have no service, and links back to the normal plan. **Run workflow → force** re-plans even when nothing changed.
+
+To try it offline:
 
 ```bash
-python3 tseed.py $GTFS E 1 0.5 --times times.json --start 356 --end 154            # Far Rockaway -> Flushing-Main St
-python3 ends.py E_gseed.npy 1 18 E_sa.npy 120 2 --end 154 [--express]
-python3 export.py E_sa.npy trial.json --end 154 [--express]
+python3 status/alerts.py --feed alerts.json --out changes.json      # or omit --feed to fetch live
+python3 solver/replan.py --gtfs $GTFS --changes changes.json --out site --minutes 8
 ```
+
+The banner and re-planned route only appear where their JSON sits next to the page, so they're on GitHub Pages but not in a local copy. For this to work, set **Settings → Pages → Source** to **GitHub Actions**.
 
 ## Run log
 
