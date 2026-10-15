@@ -102,5 +102,109 @@
    20,
    30
   ]
+ },
+ "Directed headway model local": {
+  "rules": "local",
+  "planned_h": 27.558,
+  "static_timetable": {
+   "n": 7,
+   "mean_h": 28.887,
+   "sd_min": 77.3,
+   "p10_h": 27.725,
+   "p50_h": 28.008,
+   "p90_h": 30.292,
+   "p95_h": 30.575,
+   "buffer_index": 0.058
+  },
+  "actual_days": {
+   "n": 35,
+   "mean_h": 37.096,
+   "sd_min": 51.1,
+   "p10_h": 36.063,
+   "p50_h": 37.059,
+   "p90_h": 38.221,
+   "p95_h": 38.388,
+   "buffer_index": 0.035
+  },
+  "between_day_sd_min": 44.0,
+  "within_day_sd_min": 25.3,
+  "per_day_mean_h": {
+   "2026-10-07": 36.873,
+   "2026-10-08": 37.0,
+   "2026-10-09": 38.342,
+   "2026-10-12": 37.199,
+   "2026-10-13": 36.064
+  },
+  "unreached_station_visits": 28,
+  "rides_replaced": 25,
+  "strategy": "planned rides",
+  "days": [
+   "2026-10-07",
+   "2026-10-08",
+   "2026-10-09",
+   "2026-10-12",
+   "2026-10-13"
+  ],
+  "offsets_min": [
+   -30,
+   -20,
+   -10,
+   0,
+   10,
+   20,
+   30
+  ]
+ },
+ "Directed headway model express": {
+  "rules": "express",
+  "planned_h": 26.708,
+  "static_timetable": {
+   "n": 7,
+   "mean_h": 27.645,
+   "sd_min": 49.5,
+   "p10_h": 26.892,
+   "p50_h": 27.167,
+   "p90_h": 28.583,
+   "p95_h": 28.708,
+   "buffer_index": 0.038
+  },
+  "actual_days": {
+   "n": 35,
+   "mean_h": 36.117,
+   "sd_min": 109.8,
+   "p10_h": 32.762,
+   "p50_h": 36.612,
+   "p90_h": 38.255,
+   "p95_h": 38.355,
+   "buffer_index": 0.062
+  },
+  "between_day_sd_min": 108.1,
+  "within_day_sd_min": 18.7,
+  "per_day_mean_h": {
+   "2026-10-07": 36.585,
+   "2026-10-08": 32.727,
+   "2026-10-09": 38.13,
+   "2026-10-12": 36.749,
+   "2026-10-13": 36.394
+  },
+  "unreached_station_visits": 63,
+  "rides_replaced": 141,
+  "strategy": "planned rides",
+  "days": [
+   "2026-10-07",
+   "2026-10-08",
+   "2026-10-09",
+   "2026-10-12",
+   "2026-10-13"
+  ],
+  "offsets_min": [
+   -30,
+   -20,
+   -10,
+   0,
+   10,
+   20,
+   30
+  ]
  }
 }
