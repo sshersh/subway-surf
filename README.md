@@ -71,18 +71,11 @@ To replay the saved best routes, run `python3 export.py ../results/best_solution
 
 The MTA's own feed is at <https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip> (CSV). The scripts expect the JSON export, but each file has the same columns.
 
-## Live service status and re-planning
+## Planning for current service
 
-`.github/workflows/status.yml` runs every 15 minutes (GitHub may delay scheduled runs). It downloads the MTA subway alerts feed once and does two things with it.
+`.github/workflows/status.yml` runs every 15 minutes (GitHub may delay scheduled runs). It pulls the MTA subway alerts feed, builds the service changes into the timetable, plans the route on that timetable, and deploys the site with it. There is no separate "normal plan" to re-plan: the site's route is the one planned for current service.
 
-**Banner.** `status/check_status.py` compares each alert with every stop the saved best route needs on each line, and writes `status.json`. The page shows it as a banner at the top:
-
-- **Blocks route** (red): an active suspension, skipped stops or express run hits a station the plan needs on that line.
-- **May affect** (amber): a disruption on a line the plan uses, where the alert names no stations.
-- **Delays**: delays on a line the plan uses. The route's timing assumes trains run on time.
-- **Planned work during the next run**: planned alerts that overlap a leg's clock time if the run started at its scheduled time on the next weekday.
-
-**Re-planned route.** `status/alerts.py` turns alerts into service changes. Each change targets (line, station, direction) triples:
+**Service changes.** `status/alerts.py` turns alerts into service changes. Each change targets (line, station, direction) triples:
 
 - **Skip** (Stops Skipped, Local to Express): trains run but don't stop there.
 - **Cut** (Suspended, Part Suspended, Station Closed): trains don't run through there at all. The trip is split at that point, so you can't ride through.
@@ -101,18 +94,28 @@ For "between" alerts, the order of stations comes from each line's stop patterns
 
 Changes apply to the next weekday after today. Unplanned alerts that are active now are assumed to last the whole run; planned work applies only during its posted hours. Reroutes, delays and alerts that name no stations can't be modeled, so they appear only in the banner.
 
-`solver/replan.py` rebuilds the timetable with the changes applied (`model.py --changes`, via `solver/service.py`). Stations no train stops at are left out of the challenge. It replays the saved best route, and the last re-plan, against the changed timetable. If neither gets slower, the route is kept as it is. Otherwise it adds a fresh line-aware seed and anneals for 8 minutes, with local and express rules in parallel. The result is checked by `verify.py --changes` against the same changed timetable.
+**Planning.** `solver/plan.py` builds the timetable with the changes applied (`model.py --changes`, via `solver/service.py`): skipped stops are dropped from trips and suspended stretches split them. Stations no train stops at on the run day are left out of the challenge. It seeds from a fresh line-aware tour on that timetable, the saved best routes and the last plan, moving a station earlier when an old order reaches it after its service ends. It then anneals for 10 minutes, local and express rules side by side, and checks the result with `verify.py --changes` against the same timetable.
 
-A re-plan runs only when the set of changes changes; their hash covers effect, lines, stations, times and run day, not alert wording. Each re-plan is cached under that hash, so most runs take about a minute and a re-plan about 12. The site gets `replan.json` and `current_route.json`/`current_route_express.json`. The page then opens on the re-planned route ("Current conditions" in the run picker, compared with the normal plan). The banner says what it avoids and which stations have no service, and links back to the normal plan. **Run workflow → force** re-plans even when nothing changed.
+Planning runs only when the set of changes changes; their hash covers effect, lines, stations, times and run day, not alert wording. Each plan is cached under that hash, so most runs take about a minute and a new plan about 15. If the alerts can't be read or planning fails, the site falls back to the routes for normal service and says so. **Run workflow → force** plans again even when nothing changed.
+
+**Banner.** `status/check_status.py` compares the remaining alerts with every stop the planned route needs, and writes `status.json`. Changes built into the timetable no longer hit the route, so the banner mostly shows what the timetable can't model:
+
+- **Hits the route** (red): a skip or suspension on a station the route needs at that time.
+- **May affect** (amber): a disruption on a line the route uses, where the alert names no stations.
+- **Delays**: delays on a line the route uses. The route's timing assumes trains run on time.
+- **Planned work during the next run**: planned alerts that overlap a leg's clock time.
+
+The page opens on the plan for current service ("Current service" in the run picker) and lists the changes behind it. Logged runs for normal service stay in the picker for comparison.
 
 To try it offline:
 
 ```bash
 python3 status/alerts.py --feed alerts.json --out changes.json      # or omit --feed to fetch live
-python3 solver/replan.py --gtfs $GTFS --changes changes.json --out site --minutes 8
+python3 solver/plan.py --gtfs $GTFS --changes changes.json --out plan --minutes 10
+python3 viewer/build.py viewer/data.json plan/route.json site/index.html plan/route_express.json --plan plan/plan.json
 ```
 
-The banner and re-planned route only appear where their JSON sits next to the page, so they're on GitHub Pages but not in a local copy. For this to work, set **Settings → Pages → Source** to **GitHub Actions**.
+The banner only appears where `status.json` sits next to the page, so it's on GitHub Pages but not in a local copy. For this to work, set **Settings → Pages → Source** to **GitHub Actions**.
 
 ## Run log
 

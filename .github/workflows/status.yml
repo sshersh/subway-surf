@@ -1,11 +1,10 @@
-name: Service status, re-plan and site
+name: Plan for current service and deploy
 
-# Every 15 minutes: pull MTA subway alerts, check them against the planned route, and re-plan the
-# route around skipped stops, suspensions and closures whenever those change. Then redeploy the
-# GitHub Pages site with status.json (banner), replan.json and the re-planned routes.
+# Every 15 minutes: pull the MTA subway alerts, turn skipped stops, suspensions and closures into
+# changes to the timetable, plan the route on that timetable, and deploy the site with it.
 #
-# A re-plan only runs when the modeled service changes differ from the last solved set (same hash →
-# the cached route is reused), so most runs take about a minute. A re-plan takes about 12 minutes.
+# Planning only runs when the modeled service changes differ from the last solved set (same hash ->
+# the cached plan is reused), so most runs take about a minute. Planning takes about 15 minutes.
 on:
   schedule:
     - cron: "*/15 * * * *"
@@ -14,11 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Re-plan even if the service changes haven't changed"
-        type: boolean
-        default: false
-      publish_preview:
-        description: "Publish the last re-plan preview (replan-results branch) as is, without solving"
+        description: "Plan again even if the service changes haven't changed"
         type: boolean
         default: false
 
@@ -27,20 +22,20 @@ permissions:
   pages: write
   id-token: write
 
-# queue rather than cancel, so a run that is re-planning finishes and deploys
+# queue rather than cancel, so a run that is planning finishes and deploys
 concurrency:
   group: pages
   cancel-in-progress: false
 
 env:
   FEED: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json
-  REPLAN_MINUTES: "8"   # annealing time per re-plan; local and express run side by side
-  REPLAN_PROCS: "2"     # parallel annealing runs per rules (runners have 4 cores on public repos)
+  PLAN_MINUTES: "10"   # annealing time; local and express run side by side
+  PLAN_PROCS: "2"      # parallel annealing runs per rules (runners have 4 cores on public repos)
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -60,18 +55,7 @@ jobs:
             echo "ok=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check alerts against the route (banner)
-        run: |
-          mkdir -p _site/viewer
-          unknown='import json,time,sys; json.dump({"checked_at":int(time.time()),"verdict":"unknown","now":[],"next_run":{"issues":[]}},open(sys.argv[1],"w"))'
-          if [ "${{ steps.feed.outputs.ok }}" = "true" ]; then
-            python3 status/check_status.py --feed alerts.json --out _site/status.json || python3 -c "$unknown" _site/status.json
-            python3 status/check_status.py --feed alerts.json --route results/best_route_express.json --out _site/status_express.json || true
-          else
-            python3 -c "$unknown" _site/status.json
-          fi
-
-      - name: Work out service changes to plan around
+      - name: Work out service changes
         id: changes
         if: steps.feed.outputs.ok == 'true'
         run: |
@@ -81,86 +65,76 @@ jobs:
           print(f"hash={c['hash']}"); print(f"count={len(c['changes'])}")
           EOF
 
-      - name: Use the re-plan preview (no solving)
-        if: inputs.publish_preview
-        run: |
-          git fetch --depth 1 origin replan-results
-          mkdir -p replan
-          for f in replan.json current_route.json current_route_express.json; do
-            git show "FETCH_HEAD:$f" > "replan/$f"
-          done
-          python3 -c "import json; d=json.load(open('replan/replan.json')); print('preview for', d['run_date'], 'solved at', d['solved_at'], {k: v.get('total_s') for k, v in d['rules'].items()})"
-
-      - name: Restore the last re-plan
+      - name: Restore the plan for these changes
         id: cache
-        if: steps.changes.outputs.count > 0 && !inputs.publish_preview
+        if: steps.feed.outputs.ok == 'true'
         uses: actions/cache/restore@v4
         with:
-          path: replan
-          key: replan-v1-${{ steps.changes.outputs.hash }}
-          restore-keys: replan-v1-
+          path: plan
+          key: plan-v1-${{ steps.changes.outputs.hash }}
+          restore-keys: plan-v1-
 
       - name: Get the GTFS timetable
-        if: steps.changes.outputs.count > 0 && !inputs.publish_preview && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
+        if: steps.feed.outputs.ok == 'true' && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
         run: |
           npm pack mta-gtfs-static --silent
           mkdir -p gtfs && tar xzf mta-gtfs-static-*.tgz -C gtfs
           python3 -c "import zipfile; zipfile.ZipFile('gtfs/package/gtfs_json.zip').extractall('gtfs')"
           pip install -r requirements.txt
 
-      - name: Re-plan the route around the changes
-        id: replan
-        if: steps.changes.outputs.count > 0 && !inputs.publish_preview && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
+      - name: Plan the route on the changed timetable
+        id: plan
+        if: steps.feed.outputs.ok == 'true' && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
         continue-on-error: true
         run: |
-          python3 solver/replan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out replan_new \
-            --prev replan --minutes "$REPLAN_MINUTES" --procs "$REPLAN_PROCS"
-          rm -rf replan && mv replan_new replan
+          python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out plan_new \
+            --prev plan --minutes "$PLAN_MINUTES" --procs "$PLAN_PROCS"
+          rm -rf plan && mv plan_new plan
 
-      - name: Note a failed re-plan
-        if: steps.replan.outcome == 'failure'
-        run: |
-          rm -rf replan && mkdir -p replan
-          python3 - <<'EOF'
-          import json, time
-          c = json.load(open("changes.json"))
-          json.dump({"run_date": c["run_date"], "hash": c["hash"], "solved_at": int(time.time()), "changes": c["changes"],
-                     "not_modeled": c["not_modeled"], "dropped": [], "rules": {},
-                     "error": "The solver failed on this run; it will try again when the alerts next change."},
-                    open("replan/replan.json", "w"), indent=1)
-          EOF
-
-      - name: Save the re-plan
-        if: steps.replan.outcome == 'success' && steps.cache.outputs.cache-hit != 'true'
+      - name: Save the plan
+        if: steps.plan.outcome == 'success' && steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: replan
-          key: replan-v1-${{ steps.changes.outputs.hash }}
-        continue-on-error: true   # a forced re-plan can't overwrite an existing cache entry
+          path: plan
+          key: plan-v1-${{ steps.changes.outputs.hash }}
+        continue-on-error: true   # a forced plan can't overwrite an existing cache entry
 
-      - name: No changes to plan around
-        if: steps.feed.outputs.ok == 'true' && steps.changes.outputs.count == '0' && !inputs.publish_preview
+      - name: Fall back to the saved routes
+        if: steps.feed.outputs.ok != 'true' || steps.plan.outcome == 'failure' || (steps.cache.outputs.cache-hit != 'true' && steps.plan.outcome != 'success')
         run: |
-          rm -rf replan && mkdir -p replan
           python3 - <<'EOF'
-          import json
-          c = json.load(open("changes.json"))
-          json.dump({"run_date": c["run_date"], "hash": c["hash"], "solved_at": c["generated_at"], "changes": [],
-                     "not_modeled": c["not_modeled"], "dropped": [], "rules": {}}, open("replan/replan.json", "w"), indent=1)
+          import json, os, shutil, time
+          why = ("Couldn't read the MTA alerts" if not os.path.exists("changes.json")
+                 else "Planning on the changed timetable failed")
+          c = json.load(open("changes.json")) if os.path.exists("changes.json") else {}
+          shutil.rmtree("plan", ignore_errors=True); os.makedirs("plan")
+          shutil.copy("results/best_route.json", "plan/route.json")
+          shutil.copy("results/best_route_express.json", "plan/route_express.json")
+          json.dump({"run_date": c.get("run_date"), "hash": c.get("hash"), "solved_at": int(time.time()),
+                     "changes": c.get("changes", []), "not_modeled": c.get("not_modeled", []), "dropped": [], "rules": {},
+                     "error": why + ", so this is the route for normal service."}, open("plan/plan.json", "w"), indent=1)
           EOF
 
-      - name: Assemble site
+      - name: Check remaining alerts against the planned route (banner)
         run: |
-          cp viewer/index.html _site/index.html
-          cp viewer/index.html _site/viewer/index.html
+          mkdir -p _site/viewer
+          unknown='import json,time,sys; json.dump({"checked_at":int(time.time()),"verdict":"unknown","now":[],"next_run":{"issues":[]}},open(sys.argv[1],"w"))'
+          if [ "${{ steps.feed.outputs.ok }}" = "true" ]; then
+            python3 status/check_status.py --feed alerts.json --route plan/route.json --out _site/status.json || python3 -c "$unknown" _site/status.json
+            python3 status/check_status.py --feed alerts.json --route plan/route_express.json --out _site/status_express.json || true
+          else
+            python3 -c "$unknown" _site/status.json
+          fi
+
+      - name: Build the site with the planned routes
+        run: |
+          python3 viewer/build.py viewer/data.json plan/route.json _site/index.html plan/route_express.json --plan plan/plan.json
+          cp _site/index.html _site/viewer/index.html
+          cp plan/plan.json _site/ && cp plan/plan.json _site/viewer/
           [ -f _site/status_express.json ] && cp _site/status_express.json _site/viewer/
           cp _site/status.json _site/viewer/status.json
-          if [ -f replan/replan.json ]; then
-            for f in replan/replan.json replan/current_route*.json; do
-              [ -f "$f" ] && cp "$f" _site/ && cp "$f" _site/viewer/
-            done
-          fi
           touch _site/.nojekyll
+          python3 -c "import json; d=json.load(open('plan/plan.json')); print('plan for', d['run_date'], {k: v.get('total_s') for k, v in d['rules'].items()}, d.get('error', ''))"
           ls -la _site
 
       - uses: actions/upload-pages-artifact@v3
