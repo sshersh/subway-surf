@@ -1,0 +1,78 @@
+name: Benchmark the solver (old vs new)
+
+# Plans the route from scratch on the current MTA service changes twice, with the solver before the
+# speed-ups (commit given by `old`) and with this commit, and pushes the times and route lengths to
+# the bench-results branch (bench.md).
+on:
+  push:
+    branches: [replan-around-alerts]
+    paths: [".github/workflows/bench-solver.yml", "solver/anneal.py", "solver/fast.py", "solver/plan.py"]
+  workflow_dispatch:
+    inputs:
+      old:
+        description: "Commit with the old solver"
+        default: "4ac25dd"
+
+permissions:
+  contents: write
+
+env:
+  FEED: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json
+  OLD: ${{ inputs.old || '4ac25dd' }}
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Alerts, GTFS, dependencies
+        run: |
+          curl -fsS --retry 3 --max-time 60 -A "subway-surf-status/1.0" -o alerts.json "$FEED"
+          python3 status/alerts.py --feed alerts.json --out changes.json
+          npm pack mta-gtfs-static --silent
+          mkdir -p gtfs && tar xzf mta-gtfs-static-*.tgz -C gtfs
+          python3 -c "import zipfile; zipfile.ZipFile('gtfs/package/gtfs_json.zip').extractall('gtfs')"
+          pip install -r requirements.txt
+          git worktree add old "$OLD"
+      - name: Old solver (10 minutes of annealing)
+        run: |
+          s=$(date +%s)
+          python3 old/solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_old --minutes 10 --procs 2 2>&1 | tee old.log
+          echo $(( $(date +%s) - s )) > old.secs
+      - name: New solver
+        run: |
+          s=$(date +%s)
+          python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_new --minutes 10 --procs 2 --iters 400000 2>&1 | tee new.log
+          echo $(( $(date +%s) - s )) > new.secs
+      - name: New solver, re-planning from the new plan with the same changes
+        run: |
+          s=$(date +%s)
+          python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_again --prev bench_new --minutes 10 --procs 2 --iters 400000 2>&1 | tee again.log
+          echo $(( $(date +%s) - s )) > again.secs
+      - name: Report
+        if: always()
+        run: |
+          mkdir -p out && cp *.log *.secs changes.json out/ 2>/dev/null || true
+          for d in bench_old bench_new bench_again; do [ -f $d/plan.json ] && cp $d/plan.json out/$d.json; done
+          python3 - <<'PY'
+          import json, os
+          L = ["# Solver benchmark", "", f"Old solver: commit {os.environ['OLD']}. Same alerts, GTFS and runner for all runs.", "",
+               "| Run | Wall time | Local | Express |", "|---|---|---|---|"]
+          hm = lambda s: f"{s//3600}:{s%3600//60:02d}:{s%60:02d}" if s else "-"
+          for name, d in [("Old solver, from scratch", "bench_old"), ("New solver, from scratch", "bench_new"), ("New solver, last plan unchanged", "bench_again")]:
+              try: p = json.load(open(f"out/{d}.json")); secs = int(open(f"{d.replace('bench_', '')}.secs").read())
+              except Exception as e: L.append(f"| {name} | failed | | |"); continue
+              r = p["rules"]
+              L.append(f"| {name} | {secs//60} min {secs%60} s | {hm(r.get('local', {}).get('total_s'))} | {hm(r.get('express', {}).get('total_s'))} |")
+          open("out/bench.md", "w").write("\n".join(L) + "\n"); print("\n".join(L))
+          PY
+          cd out && git init -q -b bench-results && git add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Solver benchmark $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" bench-results

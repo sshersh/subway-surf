@@ -9,8 +9,13 @@
 2. Seeds: a fresh line-aware tour on that timetable (gseed.py), the saved best routes (results/), and
    the last plan for these changes (--prev) when there is one. An old order that reaches a station
    after its service ends is repaired by moving that station earlier.
-3. Anneals for --minutes, --procs runs in parallel per rules (the fresh seed hot, the best other seed
-   warm), then exports and checks the best with verify.py against the same timetable. Writes to --out:
+   The last plan is checked first: replayed on this timetable, if its route comes out unchanged it is
+   kept and nothing is solved; if it changes from some ride on, only its order from 10 minutes before
+   that ride is annealed (--fix), alongside an unrestricted run.
+3. Anneals --procs runs in parallel per rules (the fresh seed hot, the best other seed warm) for
+   --iters moves, stopping early once a run stops improving (--stall), with --minutes as a hard cap
+   (see anneal.py), then exports and checks the best with verify.py against the same timetable.
+   Writes to --out:
      route.json, route_express.json      viewer routes (same format as results/)
      solution*.json                      station order by stop ID, to seed the next run
      plan.json                           run day, the changes planned around, left-out stations, totals
@@ -140,12 +145,42 @@ def seeds(rules, base_meta, prev_dir):
     return out
 
 
+ITERS = 400_000   # annealing moves per run; --minutes stays a hard cap
+STALL = 0.1       # past halfway, stop a run when its best hasn't improved for this share of ITERS
+
+
+def changed_from(d, X, F, prev_route, order, t0, tmp):
+    """Replay the last plan's order on this timetable and compare its rows with the last plan's route.
+    Returns ("same", None) when nothing on the route changed, ("diverges", P) with the first order
+    position the changes can affect (the route up to 10 minutes before the first difference is kept), or
+    ("broken", None) when the order no longer reaches every station."""
+    from engine import INF
+    if F.full(order, t0) >= INF:
+        return "broken", None
+    np.save(tmp + ".npy", np.concatenate([[t0], order]))
+    try:
+        run([f"{HERE}/export.py", tmp + ".npy", tmp + ".json"] + (["--express"] if X else []), d)
+    except SystemExit:
+        return "broken", None
+    new = [(r["stop_id"], r["time"], r["route"]) for r in json.load(open(tmp + ".json"))["rows"]]
+    old = [(r["stop_id"], r["time"], r["route"]) for r in prev_route["rows"]]
+    i = next((k for k, (a, b) in enumerate(zip(new, old)) if a != b), None)
+    if i is None and len(new) == len(old): return "same", None
+    i = min(len(new), len(old)) if i is None else i
+    tau = min(secs(new[i][1]) if i < len(new) else 1 << 40, secs(old[i][1]) if i < len(old) else 1 << 40)
+    F.full(order, t0); b = F.bufs[F.cur]; nl = min(int(b[7][0]), len(b[0]))
+    ok = [k for k in range(nl) if b[2][k] <= tau - 600]
+    return "diverges", (int(b[0][ok[-1]]) if ok else 0)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gtfs", required=True); ap.add_argument("--changes", required=True)
     ap.add_argument("--out", required=True); ap.add_argument("--work", default=None)
     ap.add_argument("--prev", default=None); ap.add_argument("--minutes", type=float, default=10)
     ap.add_argument("--procs", type=int, default=2); ap.add_argument("--rules", nargs="+", default=["local", "express"])
+    ap.add_argument("--iters", type=int, default=ITERS, help="annealing moves per run (0: anneal for --minutes)")
+    ap.add_argument("--stall", type=float, default=STALL, help="stop a run once its best hasn't improved for this share of --iters")
     a = ap.parse_args()
     gtfs, changes = os.path.abspath(a.gtfs), os.path.abspath(a.changes)
     work = os.path.abspath(a.work or os.path.join(a.out, "_work")); out = os.path.abspath(a.out)
@@ -162,19 +197,34 @@ def main():
                "not_modeled": ch["not_modeled"], "dropped": [{"id": s, "name": nm(s)} for s in meta.get("dropped", [])],
                "stations": len(meta["stations"]), "rules": {}}
 
-    # a fresh line-aware tour on this timetable, so the plan isn't tied to the normal route's shape
-    t = time.time()
-    run([f"{HERE}/gseed.py", gtfs, "run", "1", "0.5"], d)
-    fresh = np.load(f"{d}/run_gseed.npy")[0].astype(np.int64)
-    print(f"fresh line-aware seed: {time.time() - t:.0f} s", flush=True)
+    fresh_box = []
+    def fresh_seed():   # a fresh line-aware tour on this timetable, so the plan isn't tied to the normal route's shape
+        if not fresh_box:
+            t = time.time()
+            run([f"{HERE}/gseed.py", gtfs, "run", "1", "0.5"], d)
+            fresh_box.append(np.load(f"{d}/run_gseed.npy")[0].astype(np.int64))
+            print(f"fresh line-aware seed: {time.time() - t:.0f} s", flush=True)
+        return fresh_box[0]
 
     jobs = {}
     for rules in a.rules:
         X = rules == "express"
         cur = Scorer(d, X)
-        scored = []
-        for label, o, t0 in [("fresh line-aware seed", None, 6 * 3600)] + seeds(rules, meta, a.prev):
-            order = fresh if o is None else cur.order(o)
+        scored = []; fix = 0; sfx = "" if rules == "local" else "_" + rules
+        prev_route = os.path.join(a.prev or "", f"route{sfx}.json")
+        cands = seeds(rules, meta, a.prev)
+        cands = [x for x in cands if x[0] == "last plan"] + [x for x in cands if x[0] != "last plan"]
+        for label, o, t0 in cands + [("fresh line-aware seed", None, 6 * 3600)]:
+            if label == "last plan" and os.path.exists(prev_route):
+                # how much of the last plan do the new changes touch?
+                order = cur.order(o)
+                state, P = changed_from(d, X, cur.F, json.load(open(prev_route)), order, t0, f"{work}/prev_{rules}")
+                print(f"{rules}: last plan on this timetable: {state}" + (f" from order position {P} of {len(order)}" if P is not None else ""), flush=True)
+                if state == "same":
+                    scored = [(cur.cost(order, t0), "last plan, unchanged", order, t0)]; fix = -1; break
+                if state == "diverges":
+                    scored.append((cur.cost(order, t0), "last plan", order, t0)); fix = P; continue
+            order = fresh_seed() if o is None else cur.order(o)
             c, t1 = cur.best_start(order, t0)
             if c is None:   # a station loses service before this order gets there: move it earlier
                 order, ok = repair(d, order, t0)
@@ -185,16 +235,20 @@ def main():
         scored.sort(key=lambda x: x[0])
         info = {"seed": scored[0][1], "seed_s": scored[0][0]}
         summary["rules"][rules] = info
-        # parallel anneals: the best seed warm, the fresh seed hot, then the rest
-        fr = [x for x in scored if x[1].startswith("fresh")]
-        starts = [(scored[0], "60")] + [(x, "150") for x in fr if x is not scored[0]] + [(x, "100") for x in scored[1:] if x not in fr]
         procs = []
-        for k in range(a.procs):
-            (_, lab, o_, t_), hot = starts[k % len(starts)]
-            sf = f"{work}/seed_{rules}_{k}.npy"; np.save(sf, np.concatenate([[t_], o_]))
-            o = f"{work}/sa_{rules}_{k}.npy"
-            procs.append((o, subprocess.Popen([sys.executable, f"{HERE}/{RULES[rules]['sa']}", sf, str(k + 1), str(a.minutes), o, hot, "2"],
-                                              cwd=d, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)))
+        if fix >= 0:   # fix == -1: the changes don't touch the last plan, so it stands as is
+            # parallel anneals: the best seed warm, the fresh seed hot, then the rest. A last plan that the
+            # changes only affect from position P on is annealed with its first P positions kept.
+            fr = [x for x in scored if x[1].startswith("fresh")]
+            starts = [(scored[0], "60")] + [(x, "150") for x in fr if x is not scored[0]] + [(x, "100") for x in scored[1:] if x not in fr]
+            for k in range(a.procs):
+                (_, lab, o_, t_), hot = starts[k % len(starts)]
+                sf = f"{work}/seed_{rules}_{k}.npy"; np.save(sf, np.concatenate([[t_], o_]))
+                o = f"{work}/sa_{rules}_{k}.npy"
+                extra = ["--iters", str(a.iters), "--stall", str(a.stall)] + (["--fix", str(fix)] if lab == "last plan" and fix > 0 else [])
+                procs.append((o, subprocess.Popen([sys.executable, f"{HERE}/{RULES[rules]['sa']}", sf, str(k + 1), str(a.minutes), o, hot, "2"] + extra,
+                                                  cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)))
+        info["fixed_prefix"] = max(fix, 0)
         seed = f"{work}/seed_{rules}.npy"; np.save(seed, np.concatenate([[scored[0][3]], scored[0][2]]))
         jobs[rules] = (seed, procs, info, X)
 
@@ -202,9 +256,10 @@ def main():
         cur = Scorer(d, X)
         best = (info["seed_s"], seed)
         for o, p in procs:
-            err = p.communicate()[1]
+            log, err = p.communicate()
             if p.returncode or not os.path.exists(o):
                 print(f"{rules}: anneal run failed\n{err[-2000:]}", file=sys.stderr); continue
+            print(f"{rules}: anneal " + (log.strip().splitlines() or ["?"])[-1], flush=True)
             s = np.load(o).astype(np.int64); c = cur.cost(s[1:], s[0])
             if c is not None and c < best[0]: best = (c, o)
         sfx = "" if rules == "local" else "_" + rules

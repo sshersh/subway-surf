@@ -4,7 +4,9 @@ name: Plan for current service and deploy
 # changes to the timetable, plan the route on that timetable, and deploy the site with it.
 #
 # Planning only runs when the modeled service changes differ from the last solved set (same hash ->
-# the cached plan is reused), so most runs take about a minute. Planning takes about 15 minutes.
+# the cached plan is reused). When they differ, the last plan is checked first: if the new changes
+# don't touch it, it's kept as is; if they do, only the part from shortly before the first affected
+# ride is re-solved (alongside an unrestricted run), and runs stop once they stop improving.
 on:
   schedule:
     - cron: "*/15 * * * *"
@@ -24,7 +26,8 @@ permissions:
 
 env:
   FEED: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json
-  PLAN_MINUTES: "10"   # annealing time; local and express run side by side
+  PLAN_MINUTES: "10"   # hard cap on annealing time; local and express run side by side
+  PLAN_ITERS: "400000" # annealing moves per run; runs also stop early once they stop improving
   PLAN_PROCS: "2"      # parallel annealing runs per rules (runners have 4 cores on public repos)
 
 jobs:
@@ -67,10 +70,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: plan
-          key: plan-v3-${{ steps.changes.outputs.hash }}
+          key: plan-v4-${{ steps.changes.outputs.hash }}
           restore-keys: |
+            plan-v4-
             plan-v3-
-            plan-v1-
 
       - name: Get the GTFS timetable
         if: steps.feed.outputs.ok == 'true' && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
@@ -86,7 +89,7 @@ jobs:
         continue-on-error: true
         run: |
           python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out plan_new \
-            --prev plan --minutes "$PLAN_MINUTES" --procs "$PLAN_PROCS"
+            --prev plan --minutes "$PLAN_MINUTES" --procs "$PLAN_PROCS" --iters "$PLAN_ITERS"
           rm -rf plan && mv plan_new plan
 
       - name: Save the plan
@@ -94,7 +97,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: plan
-          key: plan-v3-${{ steps.changes.outputs.hash }}
+          key: plan-v4-${{ steps.changes.outputs.hash }}
         continue-on-error: true   # a forced plan can't overwrite an existing cache entry
 
       - name: Fall back to the saved routes
