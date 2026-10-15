@@ -77,9 +77,16 @@ def parse_feed(feed, stations):
         from alerts import affected, entities_of, raw_text, line_order
         eff, _, hit = affected(atype, raw_text(a.get("header_text")), entities_of(a, stations)[0],
                                {k: v["n"] for k, v in stations.items()}, sorted(lines), None, line_order())
-        if eff: stops = {st for _, st, _ in hit}
+        dirs = None
+        if eff:
+            stops = {st for _, st, _ in hit}
+            # which direction each (line, station) is hit in: "N"/"S", or None for both
+            dirs = {}
+            for ln, st, d in hit:
+                k = (ln, st); v = None if d is None else ("N" if int(d) == 0 else "S")
+                dirs[k] = None if (k in dirs and dirs[k] != v) else v
         out.append({"id": e.get("id"), "type": atype, "kind": classify(atype, header), "periods": periods,
-                    "lines": sorted(lines), "stops": sorted(stops), "text": header,
+                    "lines": sorted(lines), "stops": sorted(stops), "dirs": dirs, "text": header,
                     "planned": str(e.get("id", "")).startswith("lmm:planned") or atype.lower().startswith("planned")})
     return out
 
@@ -89,15 +96,16 @@ def active(periods, t):
 
 
 def route_needs(rows):
-    """(line, station, seconds-into-service-day) for every stop the plan needs a train to make."""
+    """(line, station, seconds-into-service-day, direction "N"/"S" or None) for every stop the plan
+    needs a train to make. Direction comes from the row (solver/export.py writes it from the trip)."""
     need = []
     rows = [r for r in rows if not r.get("pass")]   # passing through needs no stop: skipped-stop alerts don't matter there
     for prev, cur in zip(rows, rows[1:]):
         if not cur["route"]: continue
         t = sum(int(x) * k for x, k in zip(cur["time"].split(":"), (3600, 60, 1)))
         ln = line_of(cur["route"])
-        need.append((ln, prev["stop_id"], t))
-        need.append((ln, cur["stop_id"], t))
+        need.append((ln, prev["stop_id"], t, cur.get("dir")))
+        need.append((ln, cur["stop_id"], t, cur.get("dir")))
     return need
 
 
@@ -116,9 +124,11 @@ def next_run_start(rows, now):
 def match(alert, need, stations, day0=None):
     """Return the route stops this alert hits. day0 = service-day midnight to test planned periods."""
     hits = []
-    for ln, st, t in need:
+    for ln, st, t, dr in need:
         if alert["lines"] and ln not in alert["lines"]: continue
         if alert["stops"] and st not in alert["stops"]: continue
+        ad = (alert.get("dirs") or {}).get((ln, st))
+        if ad and dr and ad != dr: continue   # the alert is for the other direction
         if not alert["lines"] and not alert["stops"]: continue
         if day0 is not None:
             # wall clock for t seconds after service-day midnight (DST-safe)
@@ -145,7 +155,7 @@ def summarize(alert, hits, stations, kind):
 def check(feed, rows, stations, now):
     alerts = parse_feed(feed, stations)
     need = route_needs(rows)
-    used_lines = {ln for ln, _, _ in need}
+    used_lines = {ln for ln, _, _, _ in need}
     now_items, plan_items = [], []
     for a in alerts:
         if a["kind"] == "info": continue

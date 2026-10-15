@@ -29,6 +29,10 @@ if END_AT >= 0:   # add the closing ride to the finish station; the clock starts
     end_arr, extra = Ends(END_AT, EXPRESS).final_legs(order, t0)
     legs = list(legs) + extra
 st = meta["stations"]; names = meta["names"]; troute = meta["trip_route"]; T = meta["T"]
+tids = meta.get("trip_ids") or []
+def tdir(tr):   # MTA trip IDs end in ..N or ..S (e.g. 000600_1..S03R): the direction the train runs
+    tid = tids[int(tr) % len(tids)] if tids else ""
+    return "N" if "..N" in tid else "S" if "..S" in tid else None
 dep_t, arr_t, dep_s, arr_s, trip, nxt = m["dep_t"], m["arr_t"], m["dep_s"], m["arr_s"], m["trip"], m["nxt"]
 fp = {}
 for s in range(E.n):
@@ -45,7 +49,7 @@ if END_AT >= 0:
 walk_s = ride_s = 0
 for b, e, w in legs:
     b, e, w = int(b), int(e), int(w)
-    r = troute[int(trip[b]) % T]
+    r = troute[int(trip[b]) % T]; dr = tdir(trip[b])
     if w >= 0 and here is None:
         w = -1   # a walk before the first train just means starting at the next station
     if w >= 0:
@@ -57,7 +61,7 @@ for b, e, w in legs:
     assert here is None or here == int(dep_s[b]), "board where we are"
     assert t is None or dep_t[b] >= t, "board after arriving"
     if not rows or rows[-1]["stop_id"] != st[int(dep_s[b])] or rows[-1]["route"] != r or t != dep_t[b]:
-        rows.append({"stop_id": st[int(dep_s[b])], "time": hms(int(dep_t[b])), "route": r if rows else ""})
+        rows.append({"stop_id": st[int(dep_s[b])], "time": hms(int(dep_t[b])), "route": r if rows else "", **({"dir": dr} if rows and dr else {})})
     visited.setdefault(int(dep_s[b]), int(dep_t[b]))
     c = b; nstops = 0; new = 0
     while True:
@@ -67,11 +71,11 @@ for b, e, w in legs:
                 tp = int(dep_t[c] + (arr_t[c] - dep_t[c]) * (i + 1) / (len(plist) + 1))
                 if int(p) not in visited: new += 1
                 visited.setdefault(int(p), tp)
-                rows.append({"stop_id": st[int(p)], "time": hms(tp), "route": r, "pass": True})
+                rows.append({"stop_id": st[int(p)], "time": hms(tp), "route": r, "pass": True, **({"dir": dr} if dr else {})})
         s2 = int(arr_s[c]); nstops += 1
         if s2 not in visited: new += 1
         visited.setdefault(s2, int(arr_t[c]))
-        rows.append({"stop_id": st[s2], "time": hms(int(arr_t[c])), "route": r})
+        rows.append({"stop_id": st[s2], "time": hms(int(arr_t[c])), "route": r, **({"dir": dr} if dr else {})})
         if c == e: break
         n2 = int(nxt[c]); assert trip[n2] == trip[c]; c = n2
     ride_s += int(arr_t[e] - dep_t[b])

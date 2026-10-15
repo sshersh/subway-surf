@@ -67,8 +67,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: plan
-          key: plan-v1-${{ steps.changes.outputs.hash }}
-          restore-keys: plan-v1-
+          key: plan-v2-${{ steps.changes.outputs.hash }}
+          restore-keys: plan-v2-
 
       - name: Get the GTFS timetable
         if: steps.feed.outputs.ok == 'true' && (steps.cache.outputs.cache-hit != 'true' || inputs.force)
@@ -92,7 +92,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: plan
-          key: plan-v1-${{ steps.changes.outputs.hash }}
+          key: plan-v2-${{ steps.changes.outputs.hash }}
         continue-on-error: true   # a forced plan can't overwrite an existing cache entry
 
       - name: Fall back to the saved routes
