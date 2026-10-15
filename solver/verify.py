@@ -26,15 +26,19 @@ seq = collections.defaultdict(list)
 for r in L("stop_times"):
     if r["trip_id"] in wk: seq[r["trip_id"]].append(r)
 hops, between, served = set(), collections.defaultdict(set), set()
+for v in seq.values(): v.sort(key=lambda r: int(r["stop_sequence"]))
+sts = {tid: [(int(r["stop_sequence"]), parent[r["stop_id"]], ts(r["arrival_time"]), ts(r["departure_time"]), r["stop_id"]) for r in v] for tid, v in seq.items()}
+if CHANGES:
+    from service import resolve
+    resolve(CHANGES, sts, wk, list(stops.values()))
 for tid, v in seq.items():
-    v.sort(key=lambda r: int(r["stop_sequence"])); ps = [parent[r["stop_id"]] for r in v]
-    st = [(int(r["stop_sequence"]), parent[r["stop_id"]], ts(r["arrival_time"]), ts(r["departure_time"]), r["stop_id"]) for r in v]
+    ps = [parent[r["stop_id"]] for r in v]; st = sts[tid]
     for day, off in ((0, 0), (1, 86400)):
         pieces = CHANGES.apply(st, wk[tid], day)[0] if CHANGES else [st]
         for pc in pieces:
             for a, b in zip(pc, pc[1:]):
                 hops.add((wk[tid], a[1], b[1], b[2] + off))
-            served.update(x[1] for x in pc)
+            if day == 0: served.update(x[1] for x in pc)   # required: stations a train stops at on the run day
     for i in range(len(ps)):
         for j in range(i + 2, min(len(ps), i + 25)): between[(ps[i], ps[j])].update(ps[i + 1:j])
 rows = json.load(open(ROUTE))["rows"]

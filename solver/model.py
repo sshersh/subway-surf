@@ -41,6 +41,10 @@ for st in stop_times:
         seqs[st["trip_id"]].append((int(st["stop_sequence"]), parent[st["stop_id"]], tsec(st["arrival_time"]), tsec(st["departure_time"]), st["stop_id"]))
 for v in seqs.values(): v.sort()
 base_served = set(p for v in seqs.values() for _, p, _, _, _ in v)
+if CHANGES:   # which direction each worded alert ("Flushing-bound 7 skips ...") applies to
+    from service import resolve
+    for text, line, d in resolve(CHANGES, seqs, {t: v["route_id"] for t, v in trip_info.items()}, stops):
+        print(f"  direction: {line} {d}-platforms only  ({text})")
 
 # runnable trips per service day: (day, gtfs trip id, stop times)
 runs, nskip, ncut = [], 0, 0
@@ -53,13 +57,14 @@ for day in (0, 1):
         runs.extend((day, t, p) for p in pieces)
 if CHANGES:
     print(f"service changes: {nskip} stop times skipped, {ncut} cut")
-served = set(p for _, _, v in runs for _, p, _, _, _ in v)
+served = set(p for day, _, v in runs if day == 0 for _, p, _, _, _ in v)   # stations trains stop at on the run day
+runs = [(day, t, w) for day, t, v in runs for w in [[x for x in v if x[1] in served]] if len(w) >= 2]
 stations = [s for s in stops if s["location_type"] == "1" and s["stop_id"] in served]
 sid = {s["stop_id"]: i for i, s in enumerate(stations)}
 N = len(stations)
 all_parents = set(s["stop_id"] for s in stops if s["location_type"] == "1" and not s["stop_id"].startswith("S"))
 print("weekday-served stations", N, "of", len(all_parents), "missing:", sorted(all_parents - served))
-dropped = sorted(base_served - served)
+dropped = sorted(base_served - served)   # no train stops there on the run day: left out
 if dropped:
     print("no train stops at (left out of the route):", dropped)
 

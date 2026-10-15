@@ -76,6 +76,48 @@ class Scorer:
         return min(scored) if scored else (None, int(t0))
 
 
+_REPAIRED = {}
+def repair(d, order, t0, tries=300):
+    key = (d, tuple(int(x) for x in order), int(t0))
+    if key not in _REPAIRED: _REPAIRED[key] = _repair(d, order, t0, tries)
+    return _REPAIRED[key]
+
+
+def _repair(d, order, t0, tries):
+    """Make a station order feasible on a changed timetable. When the replay can't reach a station
+    any more (its service ends, e.g. a line suspended from Saturday 03:30), move that station earlier,
+    to just after the last point where the run is still 2 hours ahead of its last train, and retry.
+    Uses local rules (stopping counts), which also makes it feasible under express rules."""
+    from engine import _leg, INF
+    m = np.load(f"{d}/model.npz"); n = len(m["chg"]); nt = int(m["trip"].max()) + 1
+    last = np.zeros(n, np.int64)
+    np.maximum.at(last, m["dep_s"], m["dep_t"]); np.maximum.at(last, m["arr_s"], m["arr_t"])
+    ws = [np.zeros(n, np.int64) for _ in range(7)] + [np.zeros(nt, np.int64), np.zeros(nt, np.int64)]
+    ob, oe, ow = (np.zeros(64, np.int64) for _ in range(3))
+    order = [int(x) for x in order]; gen = 0
+    for _ in range(tries):
+        vis = np.zeros(n, bool); cur, t, ct = order[0], int(t0), -1; at = [t]; bad = None
+        for p in range(1, len(order)):
+            tgt = order[p]
+            if vis[tgt] or tgt == cur: at.append(t); continue
+            gen += 1
+            a, k = _leg(cur, t, ct, tgt, m["dep_t"], m["arr_t"], m["dep_s"], m["arr_s"], m["trip"], m["chg"],
+                        m["fp_ptr"], m["fp_to"], m["fp_t"], *ws, gen, ob, oe, ow)
+            if a >= INF: bad = p; break
+            for q in range(k - 1, -1, -1):
+                c = int(ob[q]); vis[m["dep_s"][c]] = True
+                while True:
+                    vis[m["arr_s"][c]] = True
+                    if c == oe[q]: break
+                    c = int(m["nxt"][c])
+            ct = int(m["trip"][oe[0]]); cur = tgt; t = int(a); at.append(t)
+        if bad is None: return np.array(order, dtype=np.int64), True
+        x = order.pop(bad)
+        q = max([i for i in range(bad) if at[i] < last[x] - 7200], default=0)
+        order.insert(q + 1, x)
+    return np.array(order, dtype=np.int64), False
+
+
 def seeds(rules, base_meta, prev_dir):
     """Candidate (label, stop-id order, t0) seeds for these rules."""
     cfg, out = RULES[rules], []
@@ -126,6 +168,9 @@ def main():
         for label, o, t in cands:
             order = cur.order(o)
             c, t0 = cur.best_start(order, t)
+            if c is None:   # a station loses service before the old order gets there: move it earlier
+                order, ok = repair(cur_dir, order, t)
+                if ok: c, t0 = cur.best_start(order, t); label += ", repaired"
             if c is not None: scored.append((c, label, order, t0))
             print(f"{rules}: seed {label}: {'unreachable' if c is None else f'{c/3600:.3f} h'}", flush=True)
         plans[rules] = (normal, scored, cur)
@@ -139,6 +184,9 @@ def main():
         print(f"fresh line-aware seed: {time.time() - t:.0f} s", flush=True)
         for rules, (normal, scored, cur) in plans.items():
             c, t0 = cur.best_start(g, 6 * 3600)
+            if c is None:
+                g2, ok = repair(cur_dir, g, 6 * 3600)
+                if ok: c, t0 = cur.best_start(g2, 6 * 3600); g = g2
             if c is not None: scored.append((c, "fresh line-aware seed", g, t0))
             print(f"{rules}: seed fresh line-aware seed: {'unreachable' if c is None else f'{c/3600:.3f} h'}", flush=True)
 
