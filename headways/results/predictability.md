@@ -4,7 +4,7 @@ Each route keeps its station order and takes whichever train actually gets to th
 
 | Route | Rules | Planned | Static timetable (mean) | Actual: mean | SD | P10 | P50 | P90 | P95 | Buffer index | Day-to-day SD | Within-day SD |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Annealed timetable local | local | 24:25 | 27:43 | **31:31** | 71.7 min | 30:02 | 31:30 | 33:15 | 33:38 | 6.7% | 48.2 min | 38.9 min |
-| Annealed timetable express | express | 23:48 | 27:49 | **32:05** | 92.9 min | 30:42 | 31:34 | 35:08 | 35:09 | 9.5% | 91.3 min | 16.6 min |
+| Annealed timetable local | local | 24:25 | 37:06 | **46:22** | 109.4 min | 44:56 | 47:03 | 47:37 | 47:56 | 3.4% | 62.8 min | 62.8 min |
+| Annealed timetable express | express | 23:48 | 32:17 | **38:49** | 73.2 min | 37:22 | 39:07 | 39:47 | 39:47 | 2.5% | 39.5 min | 49.6 min |
 
-Per-day means (h): Annealed timetable local: 10-07 30.27, 10-08 32.74, 10-09 31.73, 10-12 31.19, 10-13 31.69; Annealed timetable express: 10-07 31.15, 10-08 30.85, 10-09 35.06, 10-12 31.74, 10-13 31.64
+Per-day means (h): Annealed timetable local: 10-07 45.54, 10-08 47.34, 10-09 46.58, 10-12 47.55, 10-13 44.81; Annealed timetable express: 10-07 38.84, 10-08 37.55, 10-09 39.31, 10-12 39.31, 10-13 39.07
