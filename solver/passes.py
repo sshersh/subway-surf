@@ -3,12 +3,15 @@
 A hop A->B on a trip passes station X when some other trip stops at A, then X, then B in that order
 (so X lies between them on the same corridor) AND X sits within PASS_TOL metres of this trip's own
 track shape between A and B. The shape test keeps out stations on a different line that happens to
-connect A and B (and stations on lines that merely cross under or over).
+connect A and B (and stations on lines that merely cross under or over). Stations in
+realistic.PASS_DENY (express on a separate level, tunnel or bypass) never count as passed.
 
     python3 passes.py <gtfs_json_dir> model     -> model_pass.npz (CSR per connection)
 """
 import sys, json, math, collections
 import numpy as np
+sys.path.insert(0, __import__("os").path.dirname(__import__("os").path.abspath(__file__)))
+from realistic import PASS_DENY
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 PASS_TOL = 120.0   # m from the express track shape
@@ -66,7 +69,7 @@ def passes(a, b, shape_id):
         if da < PASS_TOL and db < PASS_TOL:
             lo, hi = min(pa, pb), max(pa, pb)
             for x in cands:
-                if x not in sid: continue
+                if x not in sid or x in PASS_DENY: continue   # curated: express not through the station box
                 px, dx_ = project(line, xy[x])
                 if dx_ <= PASS_TOL and lo < px < hi:
                     out.append((abs(px - pa), sid[x]))

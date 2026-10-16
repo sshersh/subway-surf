@@ -7,8 +7,20 @@ E = Engine("model"); m = E.m; meta = E.meta
 sol = np.load(sys.argv[1]).astype(np.int64)
 EXPRESS = "--express" in sys.argv     # passing through a station counts (needs model_pass.npz)
 END_AT = int(sys.argv[sys.argv.index("--end") + 1]) if "--end" in sys.argv else -1   # trial: fixed start + finish
+ROBUST = "--robust" in sys.argv     # robust planner: hard minimum slack (robust.py); records each boarding's risk
+RISK = []
 PP = None
-if EXPRESS:
+if ROBUST:
+    from robust import FastR, record as rrecord
+    F = FastR("model", express=EXPRESS, weight=float(sys.argv[sys.argv.index("--weight") + 1]) if "--weight" in sys.argv else 1.0,
+              hard="--soft" not in sys.argv)
+    t0, order = int(sol[0]), sol[1:]
+    score = F.full(order, t0); plan_s, pen_s = F.parts()
+    end, first, nv, rlegs, pen = rrecord(F, order, t0)
+    assert end - first == plan_s and pen == pen_s, (end - first, plan_s, pen, pen_s)
+    legs = [x[:3] for x in rlegs]; RISK = [x[3:] for x in rlegs]
+    if EXPRESS: PP = F.pp
+elif EXPRESS:
     from expr import FastX, recordx
     F = FastX(); t0, order = int(sol[0]), sol[1:]
     score = F.full(order, t0)
@@ -47,7 +59,7 @@ if END_AT >= 0:
     t, here = int(t0), int(order[0])
     rows.append({"stop_id": st[here], "time": hms(t), "route": ""})
 walk_s = ride_s = 0
-for b, e, w in legs:
+for li, (b, e, w) in enumerate(legs):
     b, e, w = int(b), int(e), int(w)
     r = troute[int(trip[b]) % T]; dr = tdir(trip[b])
     if w >= 0 and here is None:
@@ -84,6 +96,8 @@ for b, e, w in legs:
     else:
         itin.append({"kind": "ride", "route": r, "trip": int(trip[b]), "from": names[int(dep_s[b])], "to": names[int(arr_s[e])],
                      "t0": hms(int(dep_t[b])), "t1": hms(int(arr_t[e])), "stops": nstops, "new": new})
+        if RISK and RISK[li][0] is not None:   # slack before this boarding, cost of missing it, P(miss)
+            itin[-1].update({"slack_s": int(RISK[li][0]), "miss_s": int(RISK[li][1]), "p_miss": round(RISK[li][2], 3)})
     t = int(arr_t[e]); here = int(arr_s[e])
 rows[0]["route"] = ""
 times = [sum(int(x) * k for x, k in zip(r["time"].split(":"), (3600, 60, 1))) for r in rows]
@@ -102,6 +116,14 @@ stats = {"total_s": int(total), "start": hms(int(first)), "end": hms(int(last_ne
          "ride_s": ride_s, "walk_s": walk_s, "wait_s": int(total) - ride_s - walk_s, "fixed_ends": END_AT >= 0, "rides": nride,
          "walks": sum(1 for L in itin if L["kind"] == "walk"), "start_station": names[int(order[0])],
          "end_station": names[END_AT] if END_AT >= 0 else names[max(visited, key=visited.get)]}
+if ROBUST:
+    stats["expected_miss_s"] = int(pen_s); stats["robust"] = True
+    mp = json.load(open("model.json")).get("params", {})
+    stats["model"] = {k: mp.get(k) for k in ("LEGACY", "RUN_SPEED", "RUN_FROM", "WALK_MAX")}
+# full plan for replays/re-planning: station order (stop ids), start time, and the planned rides
+# (route, board stop, alight stop, planned dep, planned arr) as headways/predictability.py expects
+order_ids = [st[int(i)] for i in order]
+rides_plan = [[troute[int(trip[b]) % T], st[int(dep_s[b])], st[int(arr_s[e])], int(dep_t[b]), int(arr_t[e])] for b, e, w in legs]
 for L in itin: L.pop("trip", None)
-json.dump({"rows": rows, "itin": itin, "stats": stats}, open(sys.argv[2], "w"))
+json.dump({"rows": rows, "itin": itin, "stats": stats, "order": order_ids, "t0": int(t0), "rides": rides_plan}, open(sys.argv[2], "w"))
 print(json.dumps(stats, indent=1))

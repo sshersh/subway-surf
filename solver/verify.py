@@ -5,11 +5,13 @@
 Checks: every train hop (stop -> next stop on a route at an arrival time) exists in the weekday
 schedule; times never go backwards; every required station is reached by a train that stops there
 (local rules) or that stops at or passes through it (express rules: the passed station must lie
-between the hop's two stops on some other weekday trip); walks are between nearby stations.
+between the hop's two stops on some other weekday trip, and not be in realistic.PASS_DENY); walks are between nearby stations.
 With --changes, skipped and cut stops (service.py) are applied first: hops must exist in the
 changed timetable, and stations no train stops at any more aren't required.
 """
-import json, sys, math, collections
+import json, sys, math, collections, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from realistic import PASS_DENY   # stations the express runs past on a separate level/bypass: never count
 
 SRC, ROUTE = sys.argv[1], sys.argv[2]
 EXPRESS = "--express" in sys.argv
@@ -53,7 +55,7 @@ for i, b in enumerate(rows):
     if i == 0: prev_stop = b; continue
     if b.get("pass"):
         nxt = next(r for r in rows[i + 1:] if not r.get("pass"))
-        if b["stop_id"] not in between.get((prev_stop["stop_id"], nxt["stop_id"]), set()): bad_pass.append(b)
+        if b["stop_id"] not in between.get((prev_stop["stop_id"], nxt["stop_id"]), set()) or b["stop_id"] in PASS_DENY: bad_pass.append(b)
         passed.add(b["stop_id"]); continue
     a = prev_stop
     if not b["route"]:
