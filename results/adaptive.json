@@ -390,5 +390,13 @@
     "proxy": "2026-10-07"
    }
   ]
+ },
+ "old_legacy_route": {
+  "path": "results/best_route_express.json",
+  "plan_s": 85650,
+  "n": 4,
+  "note": "partial: 4 of 14 runs finished evaluating (10-07 -30; 10-08 -30,-20,-10), all failed to visit every station within 40 h (scored 48:00); the remaining runs hit the evaluator's slow path and were stopped. Rigid plan-following on legacy 1-min transfers (headways/predictability.py, 5 weekdays) gave a 32:25 mean.",
+  "median_s": 172800,
+  "under_record": 0.0
  }
 }

@@ -150,3 +150,20 @@ for its overnight part (marked proxy). A run not finished 40 h after its start c
 Validation: `--static` replays on the timetable itself and reproduces the plan (25:49 vs 25:57).
 
 `sar.py` anneals plan time + weight × expected miss cost (`--weight`, `--soft` drops the hard rule).
+
+## Results (express rules, weekday GTFS 20260826)
+
+| Route | Plan | Start → finish | Rides / walks | Fragile boardings* | Boardings 00–06 | Real days: median | P80 | Max | Under 22:14 |
+|---|---|---|---|---|---|---|---|---|---|
+| Old best (`best_route_express.json`, legacy model) | 23:47 | 13:20 → 13:07 | 69 / 31 | 9 | ~19 | did not finish in 40 h (4/4 runs evaluated) | – | – | 0% |
+| **Robust, hard slack** (`robust_express.json`) | 25:57 | 03:40 → 05:37 | 54 / 19 | 0 | 13 | **36:24** | 39:19 | 48:00 (1 unfinished) | 0% |
+| Robust, penalty only (`robust_express_soft.json`) | 24:47 | 04:02 → 04:49 | 54 / 22 | 3 | 12 | 39:49 | 48:00 | 48:00 (6 unfinished) | 0% |
+| Today's changes, robust (`robust_express_changes.json`) | 30:29 | 17:38 → 00:07 (+2 d) | 59 / 29 | 1 | 10 | not evaluated (no real data for the changed days) | | | |
+
+*slack under 2 min where a miss costs 10+ min. Real days: 2026-10-07 and 2026-10-08 × 7 start offsets
+(−30…+30 min), `headways/adaptive.py`, all numbers in `results/adaptive.json`.
+
+The realistic model alone puts the best plan above the 22:14 record (25:57; the legacy model's 23:47
+relied on 1-minute transfers such as Fulton St J ↔ A/C in 1:19). On real days the re-planning rider
+loses about 10 more hours, mostly overnight, where real trains on 15–25 min headways run irregularly. No
+route found here is likely to beat 22:14 in a real attempt.
