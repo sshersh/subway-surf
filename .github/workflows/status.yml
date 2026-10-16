@@ -27,7 +27,7 @@ permissions:
 env:
   FEED: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json
   PLAN_MINUTES: "10"   # hard cap on annealing time; local and express run side by side
-  PLAN_ITERS: "400000" # annealing moves per run; runs also stop early once they stop improving
+  PLAN_ITERS: "600000" # annealing moves per run; runs also stop early once they stop improving
   PLAN_PROCS: "2"      # parallel annealing runs per rules (runners have 4 cores on public repos)
 
 jobs:

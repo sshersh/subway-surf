@@ -8,7 +8,7 @@ The temperature falls from T_hi to T_lo over --iters moves (or over <minutes> wh
   - each move is replayed only from the leg before its first changed position, and stops as soon as
     the run rejoins the current solution (same next target, station, time, train and visited set),
     since the rest is then identical (fast.replay_rj)
-  - --stall F: once past half the schedule, stop when the best hasn't improved for F x --iters moves
+  - --stall F: in the last 30% of the schedule, stop when the best hasn't improved for F x --iters moves
   - --fix P: leave order positions < P and the start time alone (re-planning after a late change)
 """
 import sys, time, math
@@ -44,7 +44,7 @@ def main(Fast):
         if now > deadline: break
         frac = it / iters if iters else (now - start) / (deadline - start)
         if frac >= 1: break
-        if stall and frac > 0.5 and it - last_best > stall * (iters or 1e12): break
+        if stall and frac > 0.7 and it - last_best > stall * (iters or 1e12): break
         T = T_HI * (T_LO / T_HI) ** frac
         nt0 = t0; r = rng.random(); m = n - lo
         if r < 0.45:

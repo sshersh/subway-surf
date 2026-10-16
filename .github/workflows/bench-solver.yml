@@ -12,6 +12,10 @@ on:
       old:
         description: "Commit with the old solver"
         default: "4ac25dd"
+      old_too:
+        description: "Also run the old solver (12 more minutes)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -42,31 +46,35 @@ jobs:
           pip install -r requirements.txt
           git worktree add old "$OLD"
       - name: Old solver (10 minutes of annealing)
+        if: inputs.old_too
         run: |
           s=$(date +%s)
           python3 old/solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_old --minutes 10 --procs 2 2>&1 | tee old.log
           echo $(( $(date +%s) - s )) > old.secs
-      - name: New solver
+      - name: New solver, twice with different random seeds
         run: |
           s=$(date +%s)
-          python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_new --minutes 10 --procs 2 --iters 400000 2>&1 | tee new.log
+          python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_new --minutes 10 --procs 2 2>&1 | tee new.log
           echo $(( $(date +%s) - s )) > new.secs
+          s=$(date +%s)
+          python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_new2 --minutes 10 --procs 2 --seed 10 2>&1 | tee new2.log
+          echo $(( $(date +%s) - s )) > new2.secs
       - name: New solver, re-planning from the new plan with the same changes
         run: |
           s=$(date +%s)
-          python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_again --prev bench_new --minutes 10 --procs 2 --iters 400000 2>&1 | tee again.log
+          python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out bench_again --prev bench_new --minutes 10 --procs 2 2>&1 | tee again.log
           echo $(( $(date +%s) - s )) > again.secs
       - name: Report
         if: always()
         run: |
           mkdir -p out && cp *.log *.secs changes.json out/ 2>/dev/null || true
-          for d in bench_old bench_new bench_again; do [ -f $d/plan.json ] && cp $d/plan.json out/$d.json; done
+          for d in bench_old bench_new bench_new2 bench_again; do [ -f $d/plan.json ] && cp $d/plan.json out/$d.json; done
           python3 - <<'PY'
           import json, os
           L = ["# Solver benchmark", "", f"Old solver: commit {os.environ['OLD']}. Same alerts, GTFS and runner for all runs.", "",
                "| Run | Wall time | Local | Express |", "|---|---|---|---|"]
           hm = lambda s: f"{s//3600}:{s%3600//60:02d}:{s%60:02d}" if s else "-"
-          for name, d in [("Old solver, from scratch", "bench_old"), ("New solver, from scratch", "bench_new"), ("New solver, last plan unchanged", "bench_again")]:
+          for name, d in [("Old solver, from scratch", "bench_old"), ("New solver, from scratch", "bench_new"), ("New solver, from scratch, other seeds", "bench_new2"), ("New solver, last plan unchanged", "bench_again")]:
               try: p = json.load(open(f"out/{d}.json")); secs = int(open(f"{d.replace('bench_', '')}.secs").read())
               except Exception as e: L.append(f"| {name} | failed | | |"); continue
               r = p["rules"]

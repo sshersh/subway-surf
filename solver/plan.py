@@ -145,8 +145,9 @@ def seeds(rules, base_meta, prev_dir):
     return out
 
 
-ITERS = 400_000   # annealing moves per run; --minutes stays a hard cap
-STALL = 0.1       # past halfway, stop a run when its best hasn't improved for this share of ITERS
+ITERS = 600_000   # annealing moves per run; --minutes stays a hard cap
+STALL = 0.05      # in the cold last 30% of the schedule, stop a run when its best hasn't improved for this share of ITERS
+SEED_SLACK = 5400 # seeds more than 1.5 h slower than the best seed aren't worth an annealing run
 
 
 def changed_from(d, X, F, prev_route, order, t0, tmp):
@@ -181,6 +182,7 @@ def main():
     ap.add_argument("--procs", type=int, default=2); ap.add_argument("--rules", nargs="+", default=["local", "express"])
     ap.add_argument("--iters", type=int, default=ITERS, help="annealing moves per run (0: anneal for --minutes)")
     ap.add_argument("--stall", type=float, default=STALL, help="stop a run once its best hasn't improved for this share of --iters")
+    ap.add_argument("--seed", type=int, default=0, help="offset for the annealing runs' random seeds")
     a = ap.parse_args()
     gtfs, changes = os.path.abspath(a.gtfs), os.path.abspath(a.changes)
     work = os.path.abspath(a.work or os.path.join(a.out, "_work")); out = os.path.abspath(a.out)
@@ -239,14 +241,16 @@ def main():
         if fix >= 0:   # fix == -1: the changes don't touch the last plan, so it stands as is
             # parallel anneals: the best seed warm, the fresh seed hot, then the rest. A last plan that the
             # changes only affect from position P on is annealed with its first P positions kept.
-            fr = [x for x in scored if x[1].startswith("fresh")]
-            starts = [(scored[0], "60")] + [(x, "150") for x in fr if x is not scored[0]] + [(x, "100") for x in scored[1:] if x not in fr]
+            good = [x for x in scored if x[0] <= scored[0][0] + SEED_SLACK]
+            fr = [x for x in good if x[1].startswith("fresh")]
+            starts = [(scored[0], "60")] + [(x, "150") for x in fr if x is not scored[0]] + [(x, "100") for x in good[1:] if x not in fr]
+            if len(starts) < a.procs: starts.append((scored[0], "150"))   # the best seed again, hotter
             for k in range(a.procs):
                 (_, lab, o_, t_), hot = starts[k % len(starts)]
                 sf = f"{work}/seed_{rules}_{k}.npy"; np.save(sf, np.concatenate([[t_], o_]))
                 o = f"{work}/sa_{rules}_{k}.npy"
                 extra = ["--iters", str(a.iters), "--stall", str(a.stall)] + (["--fix", str(fix)] if lab == "last plan" and fix > 0 else [])
-                procs.append((o, subprocess.Popen([sys.executable, f"{HERE}/{RULES[rules]['sa']}", sf, str(k + 1), str(a.minutes), o, hot, "2"] + extra,
+                procs.append((o, subprocess.Popen([sys.executable, f"{HERE}/{RULES[rules]['sa']}", sf, str(k + 1 + a.seed), str(a.minutes), o, hot, "2"] + extra,
                                                   cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)))
         info["fixed_prefix"] = max(fix, 0)
         seed = f"{work}/seed_{rules}.npy"; np.save(seed, np.concatenate([[scored[0][3]], scored[0][2]]))
