@@ -114,10 +114,39 @@ Result on the weekday timetable: 121 distinct stations can be passed (was 133).
    the same line: 0 under 6 min, 1 min for 6–10 min, 2 min for 10–15 min, 3 min for 15 min or more;
    +1 min at night (23:00–06:00) when the headway is 10 min or more. Staying on the same train and the
    first boarding are exempt.
-2. **Expected miss cost.** Each boarding with slack s adds P(miss) × cost. P(miss) = ½(1 + x/2)e^−x with
-   x = s/B: the difference of two Laplace lateness variables, B = 96 s by day, 132 s at night, ×1.25
-   after a street walk. Laplace scales come from `headways/results/adherence.json` (median absolute
-   deviation 1–1.7 min per line). Cost = the larger of the boarding hop's and the alighting hop's
-   headway, capped at 30 min.
+2. **Expected real-day loss.** Each boarding adds the calibrated expected lateness at the alighting stop
+   for its slack (`solver/loss_table.json`, built by `headways/calibrate.py`): for ~60k sampled scheduled
+   boardings on 2026-10-07/08, a rider ready `slack` seconds before the scheduled departure takes the
+   first real train of that line that reaches the alighting stop; loss = real − scheduled arrival.
+   Grouped by headway class (<5, 5–7.5, 7.5–10, 10–15, 15–25, 25+ min) and day/night, plus a per-line
+   adjustment shrunk toward 0, floored at 0, capped at 30 min. A street walk counts its slack 45 s
+   shorter. Examples (mean loss, minutes):
+
+   | Slack | day, <5 min hw | day, 7.5–10 | day, 10–15 | night, 10–15 | night, 15–25 |
+   |---|---|---|---|---|---|
+   | 0 | 2.2 | 4.5 | 5.2 | 7.7 | 13.7 |
+   | 2 min | 0.5 | 1.9 | 2.3 | 4.7 | 10.4 |
+   | 5 min | 0 | 0 | 0.7 | 3.1 | 9.4 |
+   | 10 min | 0 | 0 | 0 | 0 | 6.9 |
+
+   Night service with 15–25 min headways loses ~10 min per boarding even with 5 min slack: the real
+   night trains run irregularly (and some are missing from the feed), so short overnight hops are
+   expensive whatever the slack. Night per-line adjustments are large (2: +5.9 min, 6: +6.7, 4: +3.3,
+   3: +2.8; J −5.2, G −4.4).
+   Without the table, robust.py falls back to a Laplace miss model (P(miss) = ½(1 + x/2)e^−x, x = slack/B,
+   B = 96 s day / 132 s night) times the headway.
+
+## Adaptive real-day evaluation
+
+`headways/adaptive.py` rides a route on the actual train movements of 2026-10-07 and 2026-10-08
+(subwaydata.nyc, from the `data-sample` branch), at 7 start offsets (−30…+30 min). The rider follows the
+planned rides (first real train of the planned line, realistic change times), and after arriving 3+ min
+late, a replaced ride or the plan running out, chooses between keeping the remaining plan and a fresh
+plan (short local search + the robust planner from the real position), whichever projects earlier on
+the timetable. Feed holes (a line with ≤20% of its scheduled movements in a 30-min window, e.g. the 42 St
+shuttle at 17:00 on 10-07) and 00:00–05:00 on the run day (whose trips are in the previous day's file,
+not in the sample) are filled with timetable trips. 10-08 has no next-day file; 10-07's file is used
+for its overnight part (marked proxy). A run not finished 40 h after its start counts as 48 h.
+Validation: `--static` replays on the timetable itself and reproduces the plan (25:49 vs 25:57).
 
 `sar.py` anneals plan time + weight × expected miss cost (`--weight`, `--soft` drops the hard rule).

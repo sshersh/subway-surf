@@ -51,7 +51,7 @@ base = lambda r: r[:-1] if len(r) == 2 and r.endswith("X") else r
 # --------------------------------------------------------------------------------------------- data
 class Real:
     """Actual connections for one run day (and the next), in the static model's station numbering."""
-    def __init__(self, F, hop_pass, files, day):
+    def __init__(self, F, hop_pass, files, day, static=False):
         sid = {s: i for i, s in enumerate(F.meta["stations"])}; n = F.n
         mid = datetime(day.year, day.month, day.day, tzinfo=ET).timestamp()
         conns = []; tix = 0; self.rcode = {}
@@ -91,6 +91,7 @@ class Real:
         sch = collections.Counter(zip(srt.tolist(), (sdep // W).tolist()))
         hole = {k for k, v in sch.items() if v >= 8 and obs.get(k, 0) <= 0.2 * v and k[1] * W < 54 * 3600}
         hole |= {k for k in sch if k[1] * W < EARLY}
+        if static: hole = set(sch); conns = []   # validation: the timetable itself as the "real day"
         self.nreal = tix   # trip ids >= nreal are timetable trips filling feed holes
         first_s = np.full(len(trc), 1 << 40, np.int64); np.minimum.at(first_s, strip, sdep)
         take = np.array([(int(trc[x]), int(first_s[x]) // W) in hole for x in range(len(trc))])
@@ -354,8 +355,10 @@ class Rider:
         replans = searches = replaced = missing = keeps = 0
         order = np.array(order, dtype=np.int64)
         plan = list(rides); walked = True; need = False
+        steps = 0; wall = time.time()
         while not self.visited.all():
-            if t > t0 + CAP: break
+            steps += 1
+            if t > t0 + CAP or steps > 4000 or time.time() - wall > 1500: break
             st_trip = -1 if (rtrip == -1 or walked) else -2
             if need or not plan:
                 order, plan, how = self.replan(order, plan, here, t, st_trip, walked, self.search and need)
@@ -413,6 +416,7 @@ class Rider:
             walked = False
         missing += int((~self.visited).sum())
         fin = int(self.last_new - self.first)
+        self.steps = steps
         return {"finish_s": fin if not missing else 48 * 3600, "raw_finish_s": fin, "start": int(self.first), "replans": replans,
                 "searches": searches, "kept": keeps, "replaced": replaced, "unreached": missing}
 
@@ -431,6 +435,7 @@ def main():
     ap.add_argument("--days", nargs="+", default=["2026-10-07", "2026-10-08"])
     ap.add_argument("--offsets", type=int, nargs="+", default=[-30, -20, -10, 0, 10, 20, 30])
     ap.add_argument("--no-search", action="store_true"); ap.add_argument("--out", default=None)
+    ap.add_argument("--static", action="store_true", help="validation: replay on the static timetable instead of real movements")
     a = ap.parse_args()
     probe = FastR(a.model, express=True, weight=1.0)
     hp = hop_table(probe)
@@ -448,7 +453,7 @@ def main():
             ad = os.path.basename(alt[-1]).split("_")[1]
             shift = int((datetime.fromisoformat(nxt).replace(tzinfo=ET) - datetime.fromisoformat(ad).replace(tzinfo=ET)).total_seconds())
             files.append(day_files(a.data, ad) + (shift,)); proxy = ad
-        t = time.time(); nets[d] = (Real(probe, hp, files, D), proxy)
+        t = time.time(); nets[d] = (Real(probe, hp, files, D, static=a.static), proxy)
         print(f"{d}: {len(nets[d][0].dep_t):,} real connections, {int(nets[d][0].served.sum())} stations served,"
               f" feed holes filled from the timetable: {dict(nets[d][0].filled)}"
               + (f", next day = {proxy} (proxy)" if proxy else "") + f" [{time.time()-t:.0f} s]", flush=True)
