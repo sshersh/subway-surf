@@ -1,0 +1,2015 @@
+{
+ "run_date": "2026-10-16",
+ "hash": "52dd89f85727c1f9",
+ "solved_at": 1792110196,
+ "feed_timestamp": 1792109123,
+ "changes": [
+  {
+   "id": "lmm:planned_work:34754",
+   "effect": "cut",
+   "lines": [
+    "1"
+   ],
+   "stops": [
+    "113",
+    "114"
+   ],
+   "targets": [
+    [
+     "1",
+     "113",
+     null
+    ],
+    [
+     "1",
+     "114",
+     null
+    ]
+   ],
+   "ends": [
+    [
+     "115"
+    ],
+    [
+     "112"
+    ]
+   ],
+   "when": [
+    [
+     1792208700,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "In Upper Manhattan, no [1] between 137 St-City College and 168 St-Washington Hts",
+   "station_names": [
+    "157 St",
+    "145 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34534",
+   "effect": "cut",
+   "lines": [
+    "3"
+   ],
+   "stops": [
+    "120",
+    "123",
+    "127",
+    "128",
+    "224",
+    "225",
+    "226",
+    "227",
+    "301",
+    "302"
+   ],
+   "targets": [
+    [
+     "3",
+     "120",
+     null
+    ],
+    [
+     "3",
+     "123",
+     null
+    ],
+    [
+     "3",
+     "127",
+     null
+    ],
+    [
+     "3",
+     "128",
+     null
+    ],
+    [
+     "3",
+     "224",
+     null
+    ],
+    [
+     "3",
+     "225",
+     null
+    ],
+    [
+     "3",
+     "226",
+     null
+    ],
+    [
+     "3",
+     "227",
+     null
+    ],
+    [
+     "3",
+     "301",
+     null
+    ],
+    [
+     "3",
+     "302",
+     null
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Suspended",
+   "text": "Overnight [3] is suspended",
+   "station_names": [
+    "96 St",
+    "72 St",
+    "Times Sq-42 St",
+    "34 St-Penn Station",
+    "135 St",
+    "125 St",
+    "116 St",
+    "110 St-Malcolm X Plaza",
+    "Harlem-148 St",
+    "145 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:33829",
+   "effect": "cut",
+   "lines": [
+    "5"
+   ],
+   "stops": [
+    "214",
+    "215",
+    "216",
+    "217",
+    "218",
+    "219",
+    "220",
+    "221",
+    "222",
+    "416",
+    "418",
+    "419",
+    "621",
+    "626",
+    "629",
+    "631",
+    "635",
+    "640"
+   ],
+   "targets": [
+    [
+     "5",
+     "214",
+     null
+    ],
+    [
+     "5",
+     "215",
+     null
+    ],
+    [
+     "5",
+     "216",
+     null
+    ],
+    [
+     "5",
+     "217",
+     null
+    ],
+    [
+     "5",
+     "218",
+     null
+    ],
+    [
+     "5",
+     "219",
+     null
+    ],
+    [
+     "5",
+     "220",
+     null
+    ],
+    [
+     "5",
+     "221",
+     null
+    ],
+    [
+     "5",
+     "222",
+     null
+    ],
+    [
+     "5",
+     "416",
+     null
+    ],
+    [
+     "5",
+     "418",
+     null
+    ],
+    [
+     "5",
+     "419",
+     null
+    ],
+    [
+     "5",
+     "621",
+     null
+    ],
+    [
+     "5",
+     "626",
+     null
+    ],
+    [
+     "5",
+     "629",
+     null
+    ],
+    [
+     "5",
+     "631",
+     null
+    ],
+    [
+     "5",
+     "635",
+     null
+    ],
+    [
+     "5",
+     "640",
+     null
+    ]
+   ],
+   "ends": [
+    [
+     "420"
+    ],
+    [
+     "213"
+    ]
+   ],
+   "when": [
+    [
+     1792196100,
+     1792206000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "[5] service ends early between Bowling Green, Manhattan and E 180 St, Bronx",
+   "station_names": [
+    "West Farms Sq-E Tremont Av",
+    "174 St",
+    "Freeman St",
+    "Simpson St",
+    "Intervale Av",
+    "Prospect Av",
+    "Jackson Av",
+    "3 Av-149 St",
+    "149 St-Hostos",
+    "138 St-Grand Concourse",
+    "Fulton St",
+    "Wall St",
+    "125 St",
+    "86 St",
+    "59 St",
+    "Grand Central-42 St",
+    "14 St-Union Sq",
+    "Brooklyn Bridge-City Hall"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34162",
+   "effect": "cut",
+   "lines": [
+    "6"
+   ],
+   "stops": [
+    "614",
+    "615",
+    "616",
+    "617",
+    "618",
+    "619"
+   ],
+   "targets": [
+    [
+     "6",
+     "614",
+     null
+    ],
+    [
+     "6",
+     "615",
+     null
+    ],
+    [
+     "6",
+     "616",
+     null
+    ],
+    [
+     "6",
+     "617",
+     null
+    ],
+    [
+     "6",
+     "618",
+     null
+    ],
+    [
+     "6",
+     "619",
+     null
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "No [6] between Hunts Point Av and 125 St",
+   "station_names": [
+    "Longwood Av",
+    "E 149 St",
+    "E 143 St-St Mary's St",
+    "Cypress Av",
+    "Brook Av",
+    "3 Av-138 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:33826",
+   "effect": "cut",
+   "lines": [
+    "6"
+   ],
+   "stops": [
+    "614",
+    "615",
+    "616",
+    "617",
+    "618",
+    "619"
+   ],
+   "targets": [
+    [
+     "6",
+     "614",
+     null
+    ],
+    [
+     "6",
+     "615",
+     null
+    ],
+    [
+     "6",
+     "616",
+     null
+    ],
+    [
+     "6",
+     "617",
+     null
+    ],
+    [
+     "6",
+     "618",
+     null
+    ],
+    [
+     "6",
+     "619",
+     null
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792200645,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "No [6] between Hunts Point Av and 125 St",
+   "station_names": [
+    "Longwood Av",
+    "E 149 St",
+    "E 143 St-St Mary's St",
+    "Cypress Av",
+    "Brook Av",
+    "3 Av-138 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34568",
+   "effect": "cut",
+   "lines": [
+    "D"
+   ],
+   "stops": [
+    "D43"
+   ],
+   "targets": [
+    [
+     "D",
+     "D43",
+     null
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792223100,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "In Brooklyn, no [D] at Coney Island-Stillwell Av",
+   "station_names": [
+    "Coney Island-Stillwell Av"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34600",
+   "effect": "cut",
+   "lines": [
+    "G"
+   ],
+   "stops": [
+    "F20",
+    "F21",
+    "F22",
+    "F23",
+    "F24",
+    "F25",
+    "F26"
+   ],
+   "targets": [
+    [
+     "G",
+     "F20",
+     null
+    ],
+    [
+     "G",
+     "F21",
+     null
+    ],
+    [
+     "G",
+     "F22",
+     null
+    ],
+    [
+     "G",
+     "F23",
+     null
+    ],
+    [
+     "G",
+     "F24",
+     null
+    ],
+    [
+     "G",
+     "F25",
+     null
+    ],
+    [
+     "G",
+     "F26",
+     null
+    ]
+   ],
+   "ends": [
+    [
+     "A42"
+    ],
+    [
+     "F27"
+    ]
+   ],
+   "when": [
+    [
+     1792200600,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "In Brooklyn, no [G] between Hoyt-Schermerhorn Sts and Church Av\nTrains run every 20 minutes between Bedford-Nostrand Avs and Hoyt-Schermerhorn Sts",
+   "station_names": [
+    "Bergen St",
+    "Carroll St",
+    "Smith-9 Sts",
+    "4 Av-9 St",
+    "7 Av",
+    "15 St-Prospect Park",
+    "Fort Hamilton Pkwy"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34551",
+   "effect": "cut",
+   "lines": [
+    "G"
+   ],
+   "stops": [
+    "G24",
+    "G26",
+    "G28",
+    "G29",
+    "G30",
+    "G31",
+    "G32"
+   ],
+   "targets": [
+    [
+     "G",
+     "G24",
+     null
+    ],
+    [
+     "G",
+     "G26",
+     null
+    ],
+    [
+     "G",
+     "G28",
+     null
+    ],
+    [
+     "G",
+     "G29",
+     null
+    ],
+    [
+     "G",
+     "G30",
+     null
+    ],
+    [
+     "G",
+     "G31",
+     null
+    ],
+    [
+     "G",
+     "G32",
+     null
+    ]
+   ],
+   "ends": [
+    [
+     "G33"
+    ],
+    [
+     "G22"
+    ]
+   ],
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "No [G] between Bedford-Nostrand Avs and Court Sq",
+   "station_names": [
+    "21 St",
+    "Greenpoint Av",
+    "Nassau Av",
+    "Metropolitan Av",
+    "Broadway",
+    "Flushing Av",
+    "Myrtle-Willoughby Avs"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34626",
+   "effect": "cut",
+   "lines": [
+    "J"
+   ],
+   "stops": [
+    "M12",
+    "M13",
+    "M14",
+    "M16",
+    "M18",
+    "M19",
+    "M20",
+    "M21",
+    "M22"
+   ],
+   "targets": [
+    [
+     "J",
+     "M12",
+     null
+    ],
+    [
+     "J",
+     "M13",
+     null
+    ],
+    [
+     "J",
+     "M14",
+     null
+    ],
+    [
+     "J",
+     "M16",
+     null
+    ],
+    [
+     "J",
+     "M18",
+     null
+    ],
+    [
+     "J",
+     "M19",
+     null
+    ],
+    [
+     "J",
+     "M20",
+     null
+    ],
+    [
+     "J",
+     "M21",
+     null
+    ],
+    [
+     "J",
+     "M22",
+     null
+    ]
+   ],
+   "ends": [
+    [
+     "M11"
+    ],
+    [
+     "M23"
+    ]
+   ],
+   "when": [
+    [
+     1792222200,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "No [J] between Myrtle Av and Broad St",
+   "station_names": [
+    "Flushing Av",
+    "Lorimer St",
+    "Hewes St",
+    "Marcy Av",
+    "Delancey St-Essex St",
+    "Bowery",
+    "Canal St",
+    "Chambers St",
+    "Fulton St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34640",
+   "effect": "cut",
+   "lines": [
+    "M"
+   ],
+   "stops": [
+    "M12",
+    "M13",
+    "M14",
+    "M16"
+   ],
+   "targets": [
+    [
+     "M",
+     "M12",
+     null
+    ],
+    [
+     "M",
+     "M13",
+     null
+    ],
+    [
+     "M",
+     "M14",
+     null
+    ],
+    [
+     "M",
+     "M16",
+     null
+    ]
+   ],
+   "ends": [
+    [
+     "M11"
+    ],
+    [
+     "F15"
+    ]
+   ],
+   "when": [
+    [
+     1792222200,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "No [M] between Myrtle Av (Broadway) and Delancey St-Essex St\nAll trains at Myrtle Av (Broadway) board from the Manhattan-bound platform",
+   "station_names": [
+    "Flushing Av",
+    "Lorimer St",
+    "Hewes St",
+    "Marcy Av"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34609",
+   "effect": "cut",
+   "lines": [
+    "R"
+   ],
+   "stops": [
+    "R28",
+    "R29",
+    "R30",
+    "R31",
+    "R32",
+    "R33",
+    "R34",
+    "R35",
+    "R36",
+    "R39",
+    "R40"
+   ],
+   "targets": [
+    [
+     "R",
+     "R28",
+     null
+    ],
+    [
+     "R",
+     "R29",
+     null
+    ],
+    [
+     "R",
+     "R30",
+     null
+    ],
+    [
+     "R",
+     "R31",
+     null
+    ],
+    [
+     "R",
+     "R32",
+     null
+    ],
+    [
+     "R",
+     "R33",
+     null
+    ],
+    [
+     "R",
+     "R34",
+     null
+    ],
+    [
+     "R",
+     "R35",
+     null
+    ],
+    [
+     "R",
+     "R36",
+     null
+    ],
+    [
+     "R",
+     "R39",
+     null
+    ],
+    [
+     "R",
+     "R40",
+     null
+    ]
+   ],
+   "ends": [
+    [
+     "R27"
+    ],
+    [
+     "R41"
+    ]
+   ],
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Part Suspended",
+   "text": "No late night [R] between Whitehall St-South Ferry and 59 St, Brooklyn",
+   "station_names": [
+    "Court St",
+    "Jay St-MetroTech",
+    "DeKalb Av",
+    "Atlantic Av-Barclays Ctr",
+    "Union St",
+    "4 Av-9 St",
+    "Prospect Av",
+    "25 St",
+    "36 St",
+    "45 St",
+    "53 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34532",
+   "effect": "skip",
+   "lines": [
+    "2"
+   ],
+   "stops": [
+    "121",
+    "122"
+   ],
+   "targets": [
+    [
+     "2",
+     "121",
+     0
+    ],
+    [
+     "2",
+     "122",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792126800,
+     1792139400
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Manhattan, uptown [2] local skips 79 St and 86 St - Take the [1] instead",
+   "station_names": [
+    "86 St",
+    "79 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:29949",
+   "effect": "skip",
+   "lines": [
+    "4"
+   ],
+   "stops": [
+    "409"
+   ],
+   "targets": [
+    [
+     "4",
+     "409",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In the Bronx, Woodlawn-bound [4] skips Burnside Av",
+   "station_names": [
+    "Burnside Av"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:31498",
+   "effect": "skip",
+   "lines": [
+    "7"
+   ],
+   "stops": [
+    "711",
+    "713"
+   ],
+   "targets": [
+    [
+     "7",
+     "711",
+     0
+    ],
+    [
+     "7",
+     "713",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Queens, Flushing-bound [7] skips 52 St and 69 St\nAll trains at Woodside-61 St board from the Manhattan-bound platform",
+   "station_names": [
+    "69 St",
+    "52 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34544",
+   "effect": "skip",
+   "lines": [
+    "A"
+   ],
+   "stops": [
+    "A10",
+    "A11",
+    "A14"
+   ],
+   "targets": [
+    [
+     "A",
+     "A10",
+     1
+    ],
+    [
+     "A",
+     "A11",
+     1
+    ],
+    [
+     "A",
+     "A14",
+     1
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Upper Manhattan, downtown [A] local skips 163 St-Amsterdam Av, 155 St and 135 St",
+   "station_names": [
+    "163 St-Amsterdam Av",
+    "155 St",
+    "135 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34593",
+   "effect": "skip",
+   "lines": [
+    "A"
+   ],
+   "stops": [
+    "A16",
+    "A17",
+    "A18",
+    "A19",
+    "A20",
+    "A21",
+    "A22"
+   ],
+   "targets": [
+    [
+     "A",
+     "A16",
+     0
+    ],
+    [
+     "A",
+     "A17",
+     0
+    ],
+    [
+     "A",
+     "A18",
+     0
+    ],
+    [
+     "A",
+     "A19",
+     0
+    ],
+    [
+     "A",
+     "A20",
+     0
+    ],
+    [
+     "A",
+     "A21",
+     0
+    ],
+    [
+     "A",
+     "A22",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792208700,
+     1792229400
+    ],
+    [
+     1792288800,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Manhattan, uptown [A] local skips 72 St, 81 St-Museum of Natural History, 86 St, 96 St, 103 St, Cathedral Pkwy-110 St and 116 St",
+   "station_names": [
+    "116 St",
+    "Cathedral Pkwy (110 St)",
+    "103 St",
+    "96 St",
+    "86 St",
+    "81 St-Museum of Natural History",
+    "72 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:35595",
+   "effect": "skip",
+   "lines": [
+    "A"
+   ],
+   "stops": [
+    "A16",
+    "A18",
+    "A19",
+    "A20",
+    "A21",
+    "A22"
+   ],
+   "targets": [
+    [
+     "A",
+     "A16",
+     0
+    ],
+    [
+     "A",
+     "A18",
+     0
+    ],
+    [
+     "A",
+     "A19",
+     0
+    ],
+    [
+     "A",
+     "A20",
+     0
+    ],
+    [
+     "A",
+     "A21",
+     0
+    ],
+    [
+     "A",
+     "A22",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Manhattan, uptown [A] local skips 72 St, 81 St, 86 St, 96 St, 103 St, 110 St and 116 St",
+   "station_names": [
+    "116 St",
+    "103 St",
+    "96 St",
+    "86 St",
+    "81 St-Museum of Natural History",
+    "72 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34550",
+   "effect": "skip",
+   "lines": [
+    "A"
+   ],
+   "stops": [
+    "A49",
+    "A50",
+    "A52",
+    "A53",
+    "A54"
+   ],
+   "targets": [
+    [
+     "A",
+     "A49",
+     null
+    ],
+    [
+     "A",
+     "A50",
+     null
+    ],
+    [
+     "A",
+     "A52",
+     null
+    ],
+    [
+     "A",
+     "A53",
+     null
+    ],
+    [
+     "A",
+     "A54",
+     null
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, Manhattan-bound [A] local skips Shepherd Av, Van Siclen Av, Liberty Av, Rockaway Av and Ralph Av",
+   "station_names": [
+    "Ralph Av",
+    "Rockaway Av",
+    "Liberty Av",
+    "Van Siclen Av",
+    "Shepherd Av"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34594",
+   "effect": "skip",
+   "lines": [
+    "C"
+   ],
+   "stops": [
+    "A16",
+    "A17",
+    "A18",
+    "A19",
+    "A20",
+    "A21",
+    "A22"
+   ],
+   "targets": [
+    [
+     "C",
+     "A16",
+     0
+    ],
+    [
+     "C",
+     "A17",
+     0
+    ],
+    [
+     "C",
+     "A18",
+     0
+    ],
+    [
+     "C",
+     "A19",
+     0
+    ],
+    [
+     "C",
+     "A20",
+     0
+    ],
+    [
+     "C",
+     "A21",
+     0
+    ],
+    [
+     "C",
+     "A22",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792233000,
+     1792294200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Manhattan, uptown [C] skips 72 St, 81 St-Museum of Natural History, 86 St, 96 St, 103 St, Cathedral Pkwy-110 St and 116 St",
+   "station_names": [
+    "116 St",
+    "Cathedral Pkwy (110 St)",
+    "103 St",
+    "96 St",
+    "86 St",
+    "81 St-Museum of Natural History",
+    "72 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34615",
+   "effect": "skip",
+   "lines": [
+    "D"
+   ],
+   "stops": [
+    "R32",
+    "R33",
+    "R34",
+    "R35"
+   ],
+   "targets": [
+    [
+     "D",
+     "R32",
+     0
+    ],
+    [
+     "D",
+     "R33",
+     0
+    ],
+    [
+     "D",
+     "R34",
+     0
+    ],
+    [
+     "D",
+     "R35",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, Manhattan-bound [D] local skips 25 St, Prospect Av, 4 Av-9 St and Union St",
+   "station_names": [
+    "Union St",
+    "4 Av-9 St",
+    "Prospect Av",
+    "25 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34598",
+   "effect": "skip",
+   "lines": [
+    "E",
+    "F"
+   ],
+   "stops": [
+    "G15",
+    "G16",
+    "G18",
+    "G19",
+    "G20"
+   ],
+   "targets": [
+    [
+     "E",
+     "G15",
+     0
+    ],
+    [
+     "E",
+     "G16",
+     0
+    ],
+    [
+     "E",
+     "G18",
+     0
+    ],
+    [
+     "E",
+     "G19",
+     0
+    ],
+    [
+     "E",
+     "G20",
+     0
+    ],
+    [
+     "F",
+     "G15",
+     0
+    ],
+    [
+     "F",
+     "G16",
+     0
+    ],
+    [
+     "F",
+     "G18",
+     0
+    ],
+    [
+     "F",
+     "G19",
+     0
+    ],
+    [
+     "F",
+     "G20",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792208700,
+     1792231200
+    ],
+    [
+     1792288800,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Queens, Jamaica-bound [E][F] local skips 36 St, Steinway St, 46 St, Northern Blvd and 65 St",
+   "station_names": [
+    "65 St",
+    "Northern Blvd",
+    "46 St",
+    "Steinway St",
+    "36 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34601",
+   "effect": "skip",
+   "lines": [
+    "F"
+   ],
+   "stops": [
+    "F20",
+    "F21",
+    "F22",
+    "F23",
+    "F25",
+    "F26",
+    "F29",
+    "F31",
+    "F32",
+    "F34"
+   ],
+   "targets": [
+    [
+     "F",
+     "F20",
+     1
+    ],
+    [
+     "F",
+     "F21",
+     1
+    ],
+    [
+     "F",
+     "F22",
+     1
+    ],
+    [
+     "F",
+     "F23",
+     1
+    ],
+    [
+     "F",
+     "F25",
+     1
+    ],
+    [
+     "F",
+     "F26",
+     1
+    ],
+    [
+     "F",
+     "F29",
+     1
+    ],
+    [
+     "F",
+     "F31",
+     1
+    ],
+    [
+     "F",
+     "F32",
+     1
+    ],
+    [
+     "F",
+     "F34",
+     1
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792201500,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, Coney Island-bound [F] runs express from Jay St-MetroTech to Kings Hwy\nAll trains at 18 Av and Kings Hwy board from the Manhattan-bound platform",
+   "station_names": [
+    "Bergen St",
+    "Carroll St",
+    "Smith-9 Sts",
+    "4 Av-9 St",
+    "15 St-Prospect Park",
+    "Fort Hamilton Pkwy",
+    "Ditmas Av",
+    "Avenue I",
+    "Bay Pkwy",
+    "Avenue P"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34552",
+   "effect": "skip",
+   "lines": [
+    "F",
+    "G"
+   ],
+   "stops": [
+    "F23",
+    "F25",
+    "F26"
+   ],
+   "targets": [
+    [
+     "F",
+     "F23",
+     1
+    ],
+    [
+     "F",
+     "F25",
+     1
+    ],
+    [
+     "F",
+     "F26",
+     1
+    ],
+    [
+     "G",
+     "F23",
+     1
+    ],
+    [
+     "G",
+     "F25",
+     1
+    ],
+    [
+     "G",
+     "F26",
+     1
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, Coney Island-bound [F] and Church Av-bound [G] skip 4 Av-9 St, 15 St-Prospect Park and Fort Hamilton Pkwy",
+   "station_names": [
+    "4 Av-9 St",
+    "15 St-Prospect Park",
+    "Fort Hamilton Pkwy"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:35713",
+   "effect": "skip",
+   "lines": [
+    "G"
+   ],
+   "stops": [
+    "F23",
+    "F25"
+   ],
+   "targets": [
+    [
+     "G",
+     "F23",
+     1
+    ],
+    [
+     "G",
+     "F25",
+     1
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792141200,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, some Church Av-bound [G] trains will skip 4 Av/9 St, 15 St-Prospect Park, and Fort Hamilton Pkwy",
+   "station_names": [
+    "4 Av-9 St",
+    "15 St-Prospect Park"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34603",
+   "effect": "skip",
+   "lines": [
+    "J"
+   ],
+   "stops": [
+    "J28",
+    "J29",
+    "J30",
+    "J31"
+   ],
+   "targets": [
+    [
+     "J",
+     "J28",
+     1
+    ],
+    [
+     "J",
+     "J29",
+     1
+    ],
+    [
+     "J",
+     "J30",
+     1
+    ],
+    [
+     "J",
+     "J31",
+     1
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792157453,
+     1792180800
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, Manhattan-bound [J] skips Chauncey St, Halsey St, Gates Av and Kosciuszko St",
+   "station_names": [
+    "Chauncey St",
+    "Halsey St",
+    "Gates Av",
+    "Kosciuszko St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34617",
+   "effect": "skip",
+   "lines": [
+    "N"
+   ],
+   "stops": [
+    "R32",
+    "R33",
+    "R34",
+    "R35"
+   ],
+   "targets": [
+    [
+     "N",
+     "R32",
+     0
+    ],
+    [
+     "N",
+     "R33",
+     0
+    ],
+    [
+     "N",
+     "R34",
+     0
+    ],
+    [
+     "N",
+     "R35",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792123200,
+     1792141200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, Manhattan-bound [N] local skips 25 St, Prospect Av, 4 Av-9 St and Union St",
+   "station_names": [
+    "Union St",
+    "4 Av-9 St",
+    "Prospect Av",
+    "25 St"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34451",
+   "effect": "skip",
+   "lines": [
+    "Q"
+   ],
+   "stops": [
+    "D27",
+    "D29",
+    "D30",
+    "D32",
+    "D33",
+    "D34"
+   ],
+   "targets": [
+    [
+     "Q",
+     "D27",
+     0
+    ],
+    [
+     "Q",
+     "D29",
+     0
+    ],
+    [
+     "Q",
+     "D30",
+     0
+    ],
+    [
+     "Q",
+     "D32",
+     0
+    ],
+    [
+     "Q",
+     "D33",
+     0
+    ],
+    [
+     "Q",
+     "D34",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792158300,
+     1792177200
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, Manhattan-bound [Q] skips Avenue M, Avenue J, Avenue H, Cortelyou Rd, Beverley Rd and Parkside Av",
+   "station_names": [
+    "Parkside Av",
+    "Beverley Rd",
+    "Cortelyou Rd",
+    "Avenue H",
+    "Avenue J",
+    "Avenue M"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34619",
+   "effect": "skip",
+   "lines": [
+    "Q"
+   ],
+   "stops": [
+    "D42"
+   ],
+   "targets": [
+    [
+     "Q",
+     "D42",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792233900,
+     1792296000
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Brooklyn, Manhattan-bound [Q] skips W 8 St-NY Aquarium - take the [F] instead",
+   "station_names": [
+    "W 8 St-NY Aquarium"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34599",
+   "effect": "skip",
+   "lines": [
+    "R"
+   ],
+   "stops": [
+    "G15",
+    "G16",
+    "G18",
+    "G19",
+    "G20"
+   ],
+   "targets": [
+    [
+     "R",
+     "G15",
+     0
+    ],
+    [
+     "R",
+     "G16",
+     0
+    ],
+    [
+     "R",
+     "G18",
+     0
+    ],
+    [
+     "R",
+     "G19",
+     0
+    ],
+    [
+     "R",
+     "G20",
+     0
+    ]
+   ],
+   "ends": null,
+   "when": [
+    [
+     1792232100,
+     1792289700
+    ]
+   ],
+   "planned": true,
+   "type": "Planned - Stops Skipped",
+   "text": "In Queens, Forest Hills-bound [R] skips 36 St, Steinway St, 46 St, Northern Blvd and 65 St",
+   "station_names": [
+    "65 St",
+    "Northern Blvd",
+    "46 St",
+    "Steinway St",
+    "36 St"
+   ]
+  }
+ ],
+ "not_modeled": [
+  {
+   "id": "lmm:alert:272042:32",
+   "kind": "possible",
+   "lines": [
+    "F"
+   ],
+   "text": "Uptown [F] trains are running on the [D] from Coney Island-Stillwell Av to Broadway-Lafayette St\n.\nConey Island-Stillwell Av-bound [F] trains are delayed.",
+   "type": "Reroute"
+  },
+  {
+   "id": "lmm:alert:272042:26",
+   "kind": "delay",
+   "lines": [
+    "D"
+   ],
+   "text": "Uptown [F] trains are running on the [D] from Coney Island-Stillwell Av to Broadway-Lafayette St\n.\nConey Island-Stillwell Av-bound [F] trains are delayed.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:alert:272043:26",
+   "kind": "delay",
+   "lines": [
+    "E",
+    "F",
+    "M",
+    "R"
+   ],
+   "text": "Downtown [E][F] trains are arriving on the local track at Forest Hills-71 Av.\nDowntown [E][F][M][R] trains are running with delays.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:alert:272032:26",
+   "kind": "delay",
+   "lines": [
+    "A",
+    "C",
+    "E"
+   ],
+   "text": "Downtown [A][C] [E] trains are running with delays after we requested NYPD/EMS for a person in need on a train at W 4 St-Wash Sq.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:planned_work:35667",
+   "kind": "delay",
+   "lines": [
+    "Q"
+   ],
+   "text": "[Q] runs every 10 minutes",
+   "type": "Reduced Service"
+  },
+  {
+   "id": "lmm:planned_work:35278",
+   "kind": "blocked",
+   "lines": [
+    "A",
+    "E",
+    "J"
+   ],
+   "text": "[airplane icon] JFK AirTrain service is suspended and replaced by free shuttle buses",
+   "type": "Station Notice"
+  },
+  {
+   "id": "lmm:planned_work:34610",
+   "kind": "possible",
+   "lines": [
+    "N"
+   ],
+   "text": "In Brooklyn and Lower Manhattan, Astoria-bound [N] local runs via the [Q] from DeKalb Av to Canal St",
+   "type": "Planned - Reroute"
+  },
+  {
+   "id": "lmm:planned_work:34602",
+   "kind": "delay",
+   "lines": [
+    "J"
+   ],
+   "text": "[J] trains run every 10 minutes",
+   "type": "Reduced Service"
+  },
+  {
+   "id": "lmm:planned_work:34596",
+   "kind": "possible",
+   "lines": [
+    "A"
+   ],
+   "text": "In Brooklyn and Lower Manhattan, no Inwood-bound [A] at High St, Fulton St, Chambers St, Canal St and Spring St",
+   "type": "Planned - Reroute"
+  },
+  {
+   "id": "lmm:planned_work:34595",
+   "kind": "possible",
+   "lines": [
+    "C"
+   ],
+   "text": "In Brooklyn and Manhattan, [C] service is rerouted between Jay St-MetroTech and 59 St-Columbus Circle",
+   "type": "Planned - Reroute"
+  },
+  {
+   "id": "lmm:planned_work:34535",
+   "kind": "delay",
+   "lines": [
+    "2"
+   ],
+   "text": "[2] runs every 30 minutes\nIn Upper Manhattan, all trains at 110 St-Malcolm X Plaza, 116 St, 125 St and 135 St board from the downtown platform",
+   "type": "Reduced Service"
+  }
+ ],
+ "dropped": [],
+ "stations": 475,
+ "rules": {
+  "local": {
+   "seed": "fresh line-aware seed",
+   "seed_s": 97170,
+   "fixed_prefix": 0,
+   "total_s": 92670,
+   "route": "route.json",
+   "verify": "PASS",
+   "start": "06:39:30",
+   "start_station": "Far Rockaway-Mott Av",
+   "end_station": "Wakefield-241 St"
+  },
+  "express": {
+   "seed": "fresh line-aware seed",
+   "seed_s": 94260,
+   "fixed_prefix": 0,
+   "total_s": 90690,
+   "route": "route_express.json",
+   "verify": "PASS",
+   "start": "09:34:30",
+   "start_station": "Rockaway Park-Beach 116 St",
+   "end_station": "Wakefield-241 St"
+  }
+ },
+ "seconds": 523
+}

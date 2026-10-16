@@ -1,0 +1,13 @@
+local: seed saved best: 30.625 h
+local: seed saved best (visit order): 29.333 h
+fresh line-aware seed: 68 s
+local: seed fresh line-aware seed: 26.992 h
+express: seed saved best: unreachable
+express: seed saved best (visit order): 42.492 h
+express: seed fresh line-aware seed: 26.183 h
+local: anneal done it 420001 in 6.5 min, best 25.742 h t0 6.61
+local: anneal done it 420001 in 6.9 min, best 26.258 h t0 6.62
+local: 25.742 h (seed 26.992 h, fresh line-aware seed), verify PASS
+express: anneal done it 420001 in 6.4 min, best 25.483 h t0 10.46
+express: anneal done it 420001 in 6.3 min, best 25.092 h t0 9.32
+express: 25.092 h (seed 26.183 h, fresh line-aware seed), verify PASS

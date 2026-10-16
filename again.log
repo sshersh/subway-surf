@@ -1,0 +1,4 @@
+local: last plan on this timetable: same
+express: last plan on this timetable: same
+local: 25.742 h (seed 25.742 h, last plan, unchanged), verify PASS
+express: 25.092 h (seed 25.092 h, last plan, unchanged), verify PASS
