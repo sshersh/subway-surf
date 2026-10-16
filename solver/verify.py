@@ -12,6 +12,7 @@ changed timetable, and stations no train stops at any more aren't required.
 import json, sys, math, collections, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from realistic import PASS_DENY   # stations the express runs past on a separate level/bypass: never count
+if "--no-deny" in sys.argv: PASS_DENY = {}   # sensitivity runs: geometric pass test only
 
 SRC, ROUTE = sys.argv[1], sys.argv[2]
 EXPRESS = "--express" in sys.argv

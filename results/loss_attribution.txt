@@ -1,0 +1,24 @@
+== robust: plan 25:57, mean loss per run 10:34 over 14 runs
+   wait      -2:48  (day -2:04, night -0:44)
+   run       0:33  (day 0:20, night 0:12)
+   replaced  0:46  (day 0:28, night 0:18)
+   re-plan residual 12:03
+   by line (wait+run+replaced, per run): L 22m, 3 13m, 6 11m, R 6m, 7 1m, N 1m, Z 0m, B 0m, FS -2m, W -2m
+   worst single boardings:
+     +120 min wait 3 34 St-Penn Station -> Harlem-148 St at 28:45 (2026-10-07 +0)
+     +50 min replaced L 14 St-Union Sq -> Canarsie-Rockaway Pkwy at 37:04 (2026-10-07 +30)
+     +44 min replaced N Coney Island-Stillwell Av -> 20 Av at 37:41 (2026-10-07 -10)
+     +41 min replaced 6 Pelham Bay Park -> 116 St at 27:47 (2026-10-07 +20)
+     +39 min replaced L Canarsie-Rockaway Pkwy -> 8 Av at 11:45 (2026-10-08 -30)
+== hand: plan 25:38, mean loss per run 9:37 over 14 runs
+   wait      -0:58  (day -0:39, night -0:18)
+   run       0:37  (day 0:21, night 0:15)
+   replaced  0:58  (day 0:43, night 0:14)
+   re-plan residual 9:00
+   by line (wait+run+replaced, per run): L 24m, 6 10m, R 8m, F 6m, 2 6m, FS 6m, H 6m, 3 5m, 1 5m, E 3m
+   worst single boardings:
+     +271 min replaced 1 207 St -> Van Cortlandt Park-242 St at 9:48 (2026-10-08 +30)
+     +69 min wait L Sutter Av -> Broadway Junction at 14:34 (2026-10-08 -10)
+     +52 min wait 7 34 St-Hudson Yards -> Flushing-Main St at 29:25 (2026-10-07 -20)
+     +49 min replaced FS Franklin Av -> Botanic Garden at 27:28 (2026-10-08 +30)
+     +47 min wait L Myrtle-Wyckoff Avs -> Halsey St at 14:29 (2026-10-08 +10)
