@@ -183,6 +183,7 @@ def main():
     ap.add_argument("--iters", type=int, default=ITERS, help="annealing moves per run (0: anneal for --minutes)")
     ap.add_argument("--stall", type=float, default=STALL, help="stop a run once its best hasn't improved for this share of --iters")
     ap.add_argument("--seed", type=int, default=0, help="offset for the annealing runs' random seeds")
+    ap.add_argument("--resolve", action="store_true", help="solve even when the last plan is unaffected (it is then the warm seed)")
     a = ap.parse_args()
     gtfs, changes = os.path.abspath(a.gtfs), os.path.abspath(a.changes)
     work = os.path.abspath(a.work or os.path.join(a.out, "_work")); out = os.path.abspath(a.out)
@@ -222,6 +223,8 @@ def main():
                 order = cur.order(o)
                 state, P = changed_from(d, X, cur.F, json.load(open(prev_route)), order, t0, f"{work}/prev_{rules}")
                 print(f"{rules}: last plan on this timetable: {state}" + (f" from order position {P} of {len(order)}" if P is not None else ""), flush=True)
+                if state == "same" and a.resolve:
+                    state, P = "diverges", 0
                 if state == "same":
                     scored = [(cur.cost(order, t0), "last plan, unchanged", order, t0)]; fix = -1; break
                 if state == "diverges":
