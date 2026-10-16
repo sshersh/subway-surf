@@ -38,13 +38,15 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.join(HERE, "..")
 sys.path.insert(0, os.path.join(ROOT, "solver"))
 from robust import FastR, record, _legr, MAXL
+import realistic as R_
 from engine import INF
 
 ET = ZoneInfo("America/New_York")
 RECORD = 22 * 3600 + 14 * 60
 LATE = 180
 EARLY = 5 * 3600   # real data before this time on the run day is incomplete; the timetable stands in
-CAP = 40 * 3600     # a run still going after 40 h is scored as failed (48 h)
+CAP = 40 * 3600
+FORCE = "--force-replan" in sys.argv   # diagnostic: re-plan after every ride     # a run still going after 40 h is scored as failed (48 h)
 base = lambda r: r[:-1] if len(r) == 2 and r.endswith("X") else r
 
 
@@ -146,14 +148,14 @@ class Planner(FastR):
         T = self.meta["T"]; rt = self.meta["trip_route"]
         self.rname = np.array([base(rt[int(x) % T]) for x in range(int(self.tt[4].max()) + 1)])[self.tt[4]]
 
-    def follow(self, rides, here, t, walked, visited, fp):
+    def follow(self, rides, here, t, walked, visited, fp, ctrip=-1):
         """Project the planned rides on the static timetable from this state: for each ride, the first
         train of that line from its boarding station that gets to its alighting station, never before
         ready + the robust buffer. Returns (time, station, visited) after the last ride that went
         through, and how many rides went through."""
         self.index()
         dep_t, arr_t, dep_s, arr_s, trip, nxt, chg = self.tt[:7]; buf = self.rob[0]; ptr, lst = self.pp
-        vis = visited.copy(); k = 0; ctrip = -1
+        vis = visited.copy(); k = 0
         for rname, sb, se, pdep, parr in rides:
             if here != sb:
                 w = fp.get((here, sb))
@@ -204,7 +206,7 @@ class Planner(FastR):
         return self._score(r)
 
 
-def local_search(P, order, rng, moves=1500, horizon=80, T=60.0):
+def local_search(P, order, rng, moves=800, horizon=80, T=60.0):
     """Short annealing on the next `horizon` order positions (segment relocate / reverse / swap)."""
     cur = P.full(order); best, best_o = cur, order.copy(); n = len(order)
     if n < 4: return order
@@ -261,6 +263,8 @@ class Rider:
         for a in range(n):
             for k in range(m["fp_ptr"][a], m["fp_ptr"][a + 1]): self.fp[(a, int(m["fp_to"][k]))] = int(m["fp_t"][k])
         self.rc = {r: i for r, i in net.rcode.items()}
+        self.rname_of = {i: r for r, i in net.rcode.items()}
+        self.last_c = -1
 
     def mark(self, b, e):
         net = self.net; c = b
@@ -290,7 +294,26 @@ class Rider:
         if a >= INF: return None
         if commit:
             for q in range(k - 1, -1, -1): self.mark(int(ob[q]), int(oe[q]))
+            self.last_c = int(oe[0])
         return int(a), int(net.trip[oe[0]]), int(net.arr_s[oe[0]])
+
+    def static_trip(self, here, t):
+        """The static trip that stands for the real train the rider is on: same line, leaving `here`
+        for the real train's next station at or after t (within 30 min). -2 if none (then the planner
+        charges a change at `here`). Lets the planner and projections stay on the train for free."""
+        c0 = getattr(self, "last_c", -1)
+        if c0 < 0: return -2
+        net, P = self.net, self.P; P.index()
+        nx = int(net.nxt[c0])
+        if nx < 0: return -2
+        ns = int(net.arr_s[nx]); line = self.rname_of[int(net.route[c0])]
+        dep_t, arr_s, trip = P.tt[0], P.tt[3], P.tt[4]
+        idx = P.at[here]; i0 = int(np.searchsorted(dep_t[idx], t))
+        for c in idx[i0:i0 + 300]:
+            c = int(c)
+            if dep_t[c] > t + 1800: break
+            if arr_s[c] == ns and P.rname[c] == line: return int(trip[c])
+        return -2
 
     def log(self, *a):
         if getattr(self, "trace", None) is not None: self.trace.append(a)
@@ -303,6 +326,28 @@ class Rider:
         P.set_state(here, t, vis, st_trip)
         c = P.full(rem)
         return INF if c >= INF else int(P.res[P.cur][0])
+
+    def proj(self, order, here, t, st_trip, plan=None, walked=False):
+        """Projected finish on the static timetable from this state: ride the remaining planned rides
+        (next train of each planned line), then finish the remaining order with the robust planner."""
+        shift = 86400 if t >= 40 * 3600 else 0
+        tt = t - shift; vis = self.visited
+        if plan:
+            sp = [(r, a, b, d - shift, e - shift) for r, a, b, d, e in plan]
+            t1, h1, v1, k = self.P.follow(sp, here, tt, walked, vis, self.fp, st_trip)
+            if k == len(sp):
+                rem = np.array([x for x in order if not v1[x] and x != h1], dtype=np.int64)
+                f = self.finish(rem, h1, t1, -2, v1)
+                return None if f >= INF else f + shift
+        f = self.finish(order, here, tt, st_trip, vis)
+        return None if f >= INF else f + shift
+
+    def charge(self, kind, line, t, F_new):
+        """Attribute the change in projected finish since the last step to (kind, line, night/day)."""
+        if F_new is None or self.F is None:
+            self.F = F_new if F_new is not None else self.F; return
+        d = F_new - self.F; self.F = F_new
+        self.loss.append((kind, line, int(R_.is_night(t)), int(d), int(t)))
 
     def replan(self, order, plan, here, t, st_trip, walked, search):
         """A rational rider's choice after a disruption, judged on the static timetable:
@@ -319,7 +364,7 @@ class Rider:
         best = (INF, None, None, "none")
         if plan:
             sp = [(r, a, b, d - shift, e - shift) for r, a, b, d, e in plan]
-            t1, h1, v1, k = P.follow(sp, here, tt, walked, self.visited, self.fp)
+            t1, h1, v1, k = P.follow(sp, here, tt, walked, self.visited, self.fp, st_trip)
             fk = self.finish(rem, h1, t1, -2, v1) if k == len(sp) else INF
             if fk < best[0]: best = (fk, rem, list(plan), "keep")
         if search:
@@ -328,6 +373,7 @@ class Rider:
         else:
             cand = rem
         f = self.finish(cand, here, tt, st_trip, self.visited)
+        self.log("proj", "keep", best[0] if best[0] < INF else -1, "fresh", f if f < INF else -1)
         if f < best[0]:
             P.set_state(here, tt, self.visited, st_trip)
             r = record(P, cand, 0, (int(here), int(tt), int(st_trip), self.visited), partial=True)
@@ -355,13 +401,21 @@ class Rider:
         replans = searches = replaced = missing = keeps = 0
         order = np.array(order, dtype=np.int64)
         plan = list(rides); walked = True; need = False
-        steps = 0; wall = time.time()
+        steps = 0; wall = time.time(); last_state = None; stuck = 0
+        self.loss = []
         while not self.visited.all():
             steps += 1
             if t > t0 + CAP or steps > 4000 or time.time() - wall > 1500: break
-            st_trip = -1 if (rtrip == -1 or walked) else -2
+            if rtrip == -1 or walked: st_trip = -1
+            else: st_trip = self.static_trip(here, t - (86400 if t >= 40 * 3600 else 0))
             if need or not plan:
-                order, plan, how = self.replan(order, plan, here, t, st_trip, walked, self.search and need)
+                state = (here, t, int(self.visited.sum()))
+                stuck = stuck + 1 if state == last_state else 0; last_state = state
+                if stuck >= 3:   # re-planning makes no progress from here: give up the next station
+                    left = [s_ for s_ in order if not self.visited[s_]]
+                    if left: self.visited[int(left[0])] = True; missing += 1
+                    stuck = 0; need = False; plan = []; continue
+                order, plan, how = self.replan(order, plan, here, t, st_trip, walked, self.search and need and stuck == 0)
                 self.log("replan", P.meta["names"][here], t, how, len(plan or []))
                 replans += 1; searches += int(need and self.search); keeps += how == "keep"; need = False
                 if not plan:   # the static plan can't finish from here: next station in the order on any trains
@@ -370,7 +424,8 @@ class Rider:
                     r = self.any_train(here, t, -1 if walked else rtrip, tgt)
                     self.log("noplan", P.meta["names"][here], P.meta["names"][tgt], t, r)
                     if r is None: self.visited[tgt] = True; missing += 1; continue
-                    t, rtrip, here = r; replaced += 1; walked = False; plan = []; continue
+                    t, rtrip, here = r; replaced += 1; walked = False; plan = []
+                    continue
             rname, sb, se, pdep, parr = plan.pop(0)
             if here != sb:
                 w = self.fp.get((here, sb))
@@ -385,7 +440,7 @@ class Rider:
                         need = True; continue
                     t, rtrip, here = r; walked = False; need = True
                     continue
-            ready = t + (int(m["chg"][sb]) if not walked else 0)
+            ready = t + (int(m["chg"][sb]) if not walked else 0); rtrip_prev = rtrip
             rc = self.rc.get(rname, -99); idx = net.at[sb]; best = None
             i0 = int(np.searchsorted(net.dep_t[idx], t))
             for c in idx[i0:]:
@@ -403,14 +458,24 @@ class Rider:
                 alt = self.any_train(here, t, -1 if walked else rtrip, se, commit=False)
                 if alt is not None and alt[0] < best[0] - 300: best = None
             if best:
-                self.mark(best[1], best[2]); t, here, rtrip = best[0], se, int(net.trip[best[2]])
+                self.mark(best[1], best[2]); t, here, rtrip = best[0], se, int(net.trip[best[2]]); self.last_c = int(best[2])
                 self.log("ride", rname, P.meta["names"][sb], P.meta["names"][se], int(net.dep_t[best[1]]), t, pdep, parr)
-                if t - parr > LATE: need = True
+                if t - parr > LATE or FORCE: need = True
+                # this boarding's new loss against the current plan: extra wait for the planned line
+                # (beyond max(ready, planned departure)) and extra running time
+                d_real = int(net.dep_t[best[1]])
+                same = int(net.trip[best[1]]) == rtrip_prev
+                wait = 0 if same else d_real - max(ready, pdep)
+                run = (t - d_real) - (parr - pdep)
+                self.loss.append(("wait", rname, int(R_.is_night(d_real)), int(wait), int(d_real), P.meta["names"][sb], P.meta["names"][se]))
+                self.loss.append(("run", rname, int(R_.is_night(d_real)), int(run), int(d_real), P.meta["names"][sb], P.meta["names"][se]))
             else:
                 r = self.any_train(here, t, -1 if walked else rtrip, se); replaced += 1
                 self.log("replace", rname, P.meta["names"][sb], P.meta["names"][se], t, r)
                 need = True
-                if r is not None: t, rtrip, here = r
+                if r is not None:
+                    self.loss.append(("replaced", rname, int(R_.is_night(t)), int(r[0] - parr), int(t), P.meta["names"][sb], P.meta["names"][se]))
+                    t, rtrip, here = r
                 else:   # nothing real gets there any more (service over): leave that station out
                     if not self.visited[se]: self.visited[se] = True; missing += 1
             walked = False
@@ -418,7 +483,7 @@ class Rider:
         fin = int(self.last_new - self.first)
         self.steps = steps
         return {"finish_s": fin if not missing else 48 * 3600, "raw_finish_s": fin, "start": int(self.first), "replans": replans,
-                "searches": searches, "kept": keeps, "replaced": replaced, "unreached": missing}
+                "searches": searches, "kept": keeps, "replaced": replaced, "unreached": missing, "loss": self.loss}
 
 
 # --------------------------------------------------------------------------------------------- main
@@ -435,6 +500,7 @@ def main():
     ap.add_argument("--days", nargs="+", default=["2026-10-07", "2026-10-08"])
     ap.add_argument("--offsets", type=int, nargs="+", default=[-30, -20, -10, 0, 10, 20, 30])
     ap.add_argument("--no-search", action="store_true"); ap.add_argument("--out", default=None)
+    ap.add_argument("--force-replan", action="store_true", help="diagnostic: re-plan after every ride")
     ap.add_argument("--static", action="store_true", help="validation: replay on the static timetable instead of real movements")
     a = ap.parse_args()
     probe = FastR(a.model, express=True, weight=1.0)
