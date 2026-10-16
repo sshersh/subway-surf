@@ -46,7 +46,8 @@ RECORD = 22 * 3600 + 14 * 60
 LATE = 180
 EARLY = 5 * 3600   # real data before this time on the run day is incomplete; the timetable stands in
 CAP = 40 * 3600
-FORCE = "--force-replan" in sys.argv   # diagnostic: re-plan after every ride     # a run still going after 40 h is scored as failed (48 h)
+FORCE = "--force-replan" in sys.argv
+LS_MOVES = int(os.environ.get("LS_MOVES", 800)); LS_H = int(os.environ.get("LS_H", 80))   # rider's re-plan search   # diagnostic: re-plan after every ride     # a run still going after 40 h is scored as failed (48 h)
 base = lambda r: r[:-1] if len(r) == 2 and r.endswith("X") else r
 
 
@@ -206,7 +207,7 @@ class Planner(FastR):
         return self._score(r)
 
 
-def local_search(P, order, rng, moves=800, horizon=80, T=60.0):
+def local_search(P, order, rng, moves=LS_MOVES, horizon=LS_H, T=60.0):
     """Short annealing on the next `horizon` order positions (segment relocate / reverse / swap)."""
     cur = P.full(order); best, best_o = cur, order.copy(); n = len(order)
     if n < 4: return order
@@ -365,8 +366,12 @@ class Rider:
         if plan:
             sp = [(r, a, b, d - shift, e - shift) for r, a, b, d, e in plan]
             t1, h1, v1, k = P.follow(sp, here, tt, walked, self.visited, self.fp, st_trip)
-            fk = self.finish(rem, h1, t1, -2, v1) if k == len(sp) else INF
-            if fk < best[0]: best = (fk, rem, list(plan), "keep")
+            # keep the rides that still work (all, or the prefix up to the first one that can't be
+            # followed), then finish by the station order from there
+            if k > 0:
+                rem1 = np.array([x for x in rem if not v1[x] and x != h1], dtype=np.int64)
+                fk = self.finish(rem1, h1, t1, -2, v1)
+                if fk < best[0]: best = (fk, rem, list(plan[:k]), "keep" if k == len(sp) else "keep-prefix")
         if search:
             P.set_state(here, tt, self.visited, st_trip)
             cand = local_search(P, rem, self.rng)

@@ -12,6 +12,8 @@ import sys, json, math, collections
 import numpy as np
 sys.path.insert(0, __import__("os").path.dirname(__import__("os").path.abspath(__file__)))
 from realistic import PASS_DENY
+if "--no-deny" in sys.argv:   # sensitivity: geometric test only
+    PASS_DENY = {}; sys.argv.remove("--no-deny")
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 PASS_TOL = 120.0   # m from the express track shape

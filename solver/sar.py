@@ -4,10 +4,13 @@ with the hard minimum-slack rule at boardings. Same arguments as sa2.py/sax.py (
     --weight W     weight of the expected miss cost (default 1.0; 0 = plan time only)
     --soft         no hard minimum slack (penalty only)
     --model PATH   model prefix (default: model)
+    --tmin H --tmax H   allowed start-time window (hours)
+    --night-pen S  extra cost (s) per boarding departing 00:00-05:30
 """
 import sys
 from functools import partial
 from robust import FastR
+import anneal
 from anneal import main
 
 
@@ -25,4 +28,7 @@ def _flag(name):
 
 local = _flag("--local"); soft = _flag("--soft")
 weight = _opt("--weight", 1.0, float); model = _opt("--model", "model")
-main(partial(FastR, model, express=not local, weight=weight, hard=not soft))
+tmin = _opt("--tmin", None, float); tmax = _opt("--tmax", None, float); npen = _opt("--night-pen", 0.0, float)
+if tmin is not None or tmax is not None:
+    anneal.T_RANGE = (int((tmin or 0) * 3600), int((tmax if tmax is not None else 20) * 3600))
+main(partial(FastR, model, express=not local, weight=weight, hard=not soft, night_pen=npen))

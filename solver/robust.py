@@ -271,7 +271,7 @@ def loss_model(z, meta, path=LOSS_TABLE):
 class FastR:
     """Drop-in for fast.Fast / expr.FastX in anneal.main, scoring plan time + weight x expected miss cost.
     hard=False drops the hard-slack rule (buf = 0); weight=0 drops the penalty."""
-    def __init__(self, path="model", express=True, weight=1.0, hard=True, pass_path=None):
+    def __init__(self, path="model", express=True, weight=1.0, hard=True, pass_path=None, night_pen=0.0):
         z = np.load(path + ".npz")
         import json
         self.meta = json.load(open(path + ".json"))
@@ -282,6 +282,9 @@ class FastR:
         buf = z["buf"] if (hard and "buf" in z.files) else np.zeros(ncon, np.int64)
         hw = z["hw"] if "hw" in z.files else np.full(ncon, 600, np.int64)
         cls, lt, sl, ladj = loss_model(z, self.meta)
+        if night_pen:   # discourage boardings 00:00-05:30 (planning knob, not a loss estimate)
+            sod = z["dep_t"] % 86400
+            ladj = ladj + np.where(sod < 5.5 * 3600, float(night_pen), 0.0)
         self.rob = (buf.astype(np.int64), hw.astype(np.int64), cls, lt, sl, ladj,
                     np.array([float(weight), float(R.MISS_CAP), float(R.WALK_SLACK_LOSS)]))
         self.express = bool(express)

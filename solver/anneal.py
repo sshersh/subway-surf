@@ -15,6 +15,8 @@ import sys, time, math
 import numpy as np
 from fast import INF
 
+T_RANGE = (0, 20 * 3600)   # allowed start times (s); sar.py --tmin/--tmax narrow it
+
 
 def main(Fast):
     args = [a for a in sys.argv[1:]]
@@ -31,9 +33,11 @@ def main(Fast):
     raw = np.load(seed_file).astype(np.int64)
     if len(raw) == F.n + 1:
         t0, order = int(raw[0]), raw[1:].copy()
+        if not (T_RANGE[0] <= t0 <= T_RANGE[1]):
+            t0 = min(range(T_RANGE[0], T_RANGE[1] + 1, 300), key=lambda t: F.E.cost(order, t)[0])
     else:
         order = raw
-        t0 = min(range(3 * 3600, 14 * 3600, 300), key=lambda t: F.E.cost(order, t)[0])
+        t0 = min(range(max(3 * 3600, T_RANGE[0]), min(14 * 3600, T_RANGE[1]) + 1, 300), key=lambda t: F.E.cost(order, t)[0])
     n = len(order); lo = max(0, min(fix, n - 2))
     cur = F.full(order, t0)
     best, best_o, best_t0 = cur, order.copy(), t0
@@ -61,7 +65,7 @@ def main(Fast):
             i, j = sorted(lo + rng.integers(0, m, 2)); o = order.copy(); o[i], o[j] = o[j], o[i]; p = int(i); q = int(j) + 1
         else:
             if lo: continue   # the start time is part of the fixed prefix
-            nt0 = int(np.clip(t0 + rng.integers(-1800, 1801), 0, 20 * 3600)); o = order; p = 0; q = 0
+            nt0 = int(np.clip(t0 + rng.integers(-1800, 1801), T_RANGE[0], T_RANGE[1])); o = order; p = 0; q = 0
         c = F.try_(o, nt0, p if nt0 == t0 else 0, q)
         it += 1
         if c < INF and (c <= cur or rng.random() < math.exp((cur - c) / T)):
