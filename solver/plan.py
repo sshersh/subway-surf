@@ -30,6 +30,7 @@ RULES = {
     "local":   {"route": "best_route.json", "sol": "best_solution.npy", "sa": "sa2.py", "flag": []},
     "express": {"route": "best_route_express.json", "sol": "best_solution_express.npy", "sa": "sax.py", "flag": ["--express"]},
 }
+ROBUST = {"sa": "sar.py", "flag": ["--robust"]}   # --robust: anneal and export on the robust objective (robust.py)
 secs = lambda s: sum(int(x) * k for x, k in zip(s.split(":"), (3600, 60, 1)))
 
 
@@ -53,7 +54,10 @@ class Scorer:
     def __init__(self, d, express):
         from engine import INF
         self.INF = INF
-        if express:
+        if ROBUST_ON:
+            from robust import FastR
+            self.F = FastR(f"{d}/model", express=express)
+        elif express:
             from expr import FastX
             self.F = FastX(f"{d}/model")
         else:
@@ -145,6 +149,7 @@ def seeds(rules, base_meta, prev_dir):
     return out
 
 
+ROBUST_ON = False
 ITERS = 600_000   # annealing moves per run; --minutes stays a hard cap
 STALL = 0.05      # in the cold last 30% of the schedule, stop a run when its best hasn't improved for this share of ITERS
 SEED_SLACK = 5400 # seeds more than 1.5 h slower than the best seed aren't worth an annealing run
@@ -184,7 +189,11 @@ def main():
     ap.add_argument("--stall", type=float, default=STALL, help="stop a run once its best hasn't improved for this share of --iters")
     ap.add_argument("--seed", type=int, default=0, help="offset for the annealing runs' random seeds")
     ap.add_argument("--resolve", action="store_true", help="solve even when the last plan is unaffected (it is then the warm seed)")
+    ap.add_argument("--robust", action="store_true", help="plan on the robust objective (hard slack + expected real-day loss, robust.py)")
+    ap.add_argument("--seeds", nargs="*", default=[], help="extra seed solutions (.npy: [t0, order...] on this station list)")
     a = ap.parse_args()
+    global ROBUST_ON
+    ROBUST_ON = a.robust
     gtfs, changes = os.path.abspath(a.gtfs), os.path.abspath(a.changes)
     work = os.path.abspath(a.work or os.path.join(a.out, "_work")); out = os.path.abspath(a.out)
     os.makedirs(out, exist_ok=True)
@@ -216,6 +225,10 @@ def main():
         scored = []; fix = 0; sfx = "" if rules == "local" else "_" + rules
         prev_route = os.path.join(a.prev or "", f"route{sfx}.json")
         cands = seeds(rules, meta, a.prev)
+        for sp in a.seeds:   # extra seeds given on the command line
+            arr = np.load(sp).astype(np.int64)
+            if len(arr) == len(meta["stations"]) + 1:
+                cands.append((f"seed {os.path.basename(sp)}", [meta["stations"][i] for i in arr[1:]], int(arr[0])))
         cands = [x for x in cands if x[0] == "last plan"] + [x for x in cands if x[0] != "last plan"]
         for label, o, t0 in cands + [("fresh line-aware seed", None, 6 * 3600)]:
             if label == "last plan" and os.path.exists(prev_route):
@@ -253,7 +266,8 @@ def main():
                 sf = f"{work}/seed_{rules}_{k}.npy"; np.save(sf, np.concatenate([[t_], o_]))
                 o = f"{work}/sa_{rules}_{k}.npy"
                 extra = ["--iters", str(a.iters), "--stall", str(a.stall)] + (["--fix", str(fix)] if lab == "last plan" and fix > 0 else [])
-                procs.append((o, subprocess.Popen([sys.executable, f"{HERE}/{RULES[rules]['sa']}", sf, str(k + 1 + a.seed), str(a.minutes), o, hot, "2"] + extra,
+                sa = [f"{HERE}/{ROBUST['sa']}"] + ([] if X else ["--local"]) if ROBUST_ON else [f"{HERE}/{RULES[rules]['sa']}"]
+                procs.append((o, subprocess.Popen([sys.executable] + sa[:1] + [sf, str(k + 1 + a.seed), str(a.minutes), o, hot, "2"] + extra + sa[1:],
                                                   cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)))
         info["fixed_prefix"] = max(fix, 0)
         seed = f"{work}/seed_{rules}.npy"; np.save(seed, np.concatenate([[scored[0][3]], scored[0][2]]))
@@ -271,7 +285,7 @@ def main():
             if c is not None and c < best[0]: best = (c, o)
         sfx = "" if rules == "local" else "_" + rules
         route = f"{out}/route{sfx}.json"
-        run([f"{HERE}/export.py", best[1], route] + RULES[rules]["flag"], d)
+        run([f"{HERE}/export.py", best[1], route] + RULES[rules]["flag"] + (ROBUST["flag"] if ROBUST_ON else []), d)
         v = run([f"{HERE}/verify.py", gtfs, route] + RULES[rules]["flag"] + (["--changes", changes] if ch["changes"] else []), d)
         verdict = v.strip().splitlines()[-1]
         r = json.load(open(route)); s = np.load(best[1]).astype(np.int64)

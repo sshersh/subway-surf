@@ -13,14 +13,43 @@ The official record is 22 h 14 m for 472 stations (Kate Jones, 2023), set under 
 
 Open `viewer/index.html` in a browser to watch it play back.
 
+## Robust planning (realistic model)
+
+The original model assumes 1-minute transfers, walking only and trains exactly on time; its express
+route (23:47 on paper) averaged 32:25 on real days. The realistic model and robust planner
+(`docs/realistic-model.md`) aim at a route that holds up in a real attempt:
+
+- **Transfers** (`solver/realistic.py`): per-station change times (2 min default, 1 min at terminals,
+  2:30–3:00 at two-level and deep stations) and curated times for every linked complex (e.g. Fulton St
+  J ↔ A/C 4:00, was 1:19). `model.py --legacy` keeps the old figures.
+- **Running**: street links beyond 300 m are run at 2.5 m/s (×1.3 street factor, 2 min in/out); cap 2 km.
+- **Pass-throughs**: a station counts only if the express track runs through the station box; a curated
+  deny list removes bypass, lower-level and unverified cases (DeKalb Av, 6 Av 14/23 St, Lexington
+  north of 42 St, Steinway/46 St, Concourse 161/155 St, ...). `verify.py --express` enforces it.
+- **Robust objective** (`solver/robust.py`, `solver/sar.py`): every boarding needs a minimum slack
+  (0–3 min by the headway to the next equivalent train, +1 min at night), and the annealer minimises
+  plan time + the expected real-day loss of each boarding, from a table calibrated on real train
+  movements (`headways/calibrate.py` → `solver/loss_table.json`).
+- **Adaptive real-day evaluation** (`headways/adaptive.py`): a rider follows the plan on a day of actual
+  train movements and re-plans from wherever they are after a disruption.
+
+```bash
+cd solver
+python3 model.py $GTFS model && python3 passes.py $GTFS model
+python3 sar.py seed.npy 1 60 robust.npy 150 2                 # anneal on the robust objective
+python3 export.py robust.npy ../results/robust_express.json --express --robust
+python3 verify.py $GTFS ../results/robust_express.json --express
+python3 ../headways/adaptive.py --model model --data <subwaydata CSV dir> \
+    --routes robust:../results/robust_express.json --out ../results/adaptive.json
+```
+
 ## Rules modeled
 
 - **Local rules** (default): a station counts only when a train you're riding **stops** there.
 - **Express rules**: a station also counts when your train passes through it without stopping. `solver/passes.py` works out which stations each express hop passes: the station must lie between the hop's two stops on some other trip, and within 120 m of the express's own track shape.
 - Staten Island Railway is excluded: it can't be reached without the ferry, and the challenge excludes it.
 - Weekday GTFS schedule. Trains run exactly on time.
-- Changing trains takes 1 min within a station, 30 s cross-platform, and 3 min at the six big complexes the MTA rates at 5 min. Between linked stations (e.g. Times Sq ↔ Port Authority) it takes 1 min plus the walk at 1.1 m/s, never more than the MTA's `min_transfer_time`. The MTA's own figures (mostly 3 min) are conservative trip-planner allowances, not measured walks.
-- Walking between stations is allowed up to 1.6 km straight-line. The walking model is 1.4 m/s with a ×1.3 street factor, plus 2 min to leave one station and enter the other.
+- Transfers and street links: see "Robust planning" above and `docs/realistic-model.md`. With `model.py --legacy` (the routes in the table above): changing trains takes 1 min within a station, 30 s cross-platform, and 3 min at the six big complexes the MTA rates at 5 min; linked stations take 1 min plus the walk at 1.1 m/s, never more than the MTA's `min_transfer_time`; walking is allowed up to 1.6 km straight-line at 1.4 m/s with a ×1.3 street factor, plus 2 min to leave one station and enter the other.
 
 ## How it works
 
@@ -140,7 +169,7 @@ The viewer's "Compare another route" box accepts the same CSV or JSON.
 
 ## Ideas to get closer to the record
 
-- Running speed between stations, and measured transfer times (e.g. from station layouts in OpenStreetMap).
+- Measured transfer times (e.g. from station layouts in OpenStreetMap) to replace the curated estimates.
 - Allowing buses, which Guinness permits.
 - Counting with the 472 rule, where some transfer complexes count as one station.
 - A replay that prefers trains covering new stations, and robustness to delays.

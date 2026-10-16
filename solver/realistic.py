@@ -127,6 +127,12 @@ def board_buffer(hw, night):
 # P = 0.5 (1 + x/2) exp(-x), x = slack / B. Walks between stations add noise: B x WALK_NOISE.
 B_DAY, B_NIGHT, WALK_NOISE = 96.0, 132.0, 1.25
 MISS_CAP = 1800           # s: a miss costs at most this (the rider can re-plan)
+WALK_SLACK_LOSS = 45      # s: a street walk/run is less predictable; count its slack as this much shorter
+
+# The planner's penalty is the calibrated expected loss per boarding (solver/loss_table.json, from
+# headways/calibrate.py on real train movements): real arrival at the alighting stop minus the
+# scheduled arrival, for a rider ready `slack` s before the scheduled departure, by headway class and
+# day/night, plus a per-line adjustment, floored at 0. Without the table, the Laplace model above.
 
 
 # ---------------------------------------------------------------------------------------------
@@ -142,8 +148,8 @@ MISS_CAP = 1800           # s: a miss costs at most this (the rider can re-plan)
 #   Eastern Pkwy-Brooklyn Museum, Nostrand Av, Kingston Av; White Plains Rd and Pelham 3-track els;
 #   Flushing 3-track el (7X); CPW 135..72 St, 8 Av 23 St and Spring St; Fulton St A express stops;
 #   Concourse 182-183/174-175/170/167 St; Brighton local stops; 4 Av local stops; Broadway BMT
-#   49/28/23 St, 8 St, Prince St; Queens Blvd 67 Av..Elmhurst, 65 St, Northern Blvd, 36 St, 75 Av,
-#   169 St, Sutphin Blvd; Jamaica J/Z skip-stop (same track, past the platform); Broadway el centre
+#   49/28/23 St, 8 St, Prince St; Queens Blvd 67 Av..Elmhurst, 65 St, Northern Blvd, 36 St, 75 Av;
+#   Jamaica J/Z skip-stop (same track, past the platform); Broadway el centre
 #   express (Flushing Av, Lorimer, Hewes); West End 3-track el.
 PASS_DENY = {
     "236": "Bergen St (IRT Eastern Pkwy): two-level; 4/5 express on the lower level",
@@ -164,6 +170,8 @@ PASS_DENY = {
     "A10": "163 St-Amsterdam Av: Washington Hts section, express track arrangement not verified (deny)",
     "A11": "155 St (8 Av): express track arrangement not verified (deny)",
     "416": "138 St-Grand Concourse: 4 express track arrangement not verified (deny)",
+    "F02": "169 St (Hillside Av): track/platform arrangement not verified (deny)",
+    "F04": "Sutphin Blvd (Hillside Av): track/platform arrangement not verified (deny)",
     "F05": "Briarwood: E/F express track arrangement with the Archer Av split (unsure: deny)",
     "G18": "46 St (Queens Blvd): express tracks run in a separate tunnel under Northern Blvd",
     "G19": "Steinway St: as 46 St, express tracks in a separate tunnel",

@@ -91,9 +91,11 @@ class Real:
         sch = collections.Counter(zip(srt.tolist(), (sdep // W).tolist()))
         hole = {k for k, v in sch.items() if v >= 8 and obs.get(k, 0) <= 0.2 * v and k[1] * W < 54 * 3600}
         hole |= {k for k in sch if k[1] * W < EARLY}
+        self.nreal = tix   # trip ids >= nreal are timetable trips filling feed holes
         first_s = np.full(len(trc), 1 << 40, np.int64); np.minimum.at(first_s, strip, sdep)
         take = np.array([(int(trc[x]), int(first_s[x]) // W) in hole for x in range(len(trc))])
         inv = {v: k for k, v in self.rcode.items()}
+        self.holes = hole   # (route code, 30-min window) filled from the timetable
         self.filled = collections.Counter()
         for i in np.nonzero(take[strip])[0]:
             r = inv[int(srt[i])]
@@ -278,11 +280,12 @@ class Rider:
         net, m = self.net, self.P.m
         ob = np.zeros(64, np.int64); oe = np.zeros(64, np.int64); ow = np.zeros(64, np.int64); pen = np.zeros(1)
         if not hasattr(net, "_z"):
-            net._z = np.zeros(len(net.dep_t), np.int64); net._pb = np.ones(len(net.dep_t))
-        z, pb = net._z, net._pb; rp = np.array([0.0, 1800.0, 1.0])
+            net._z = np.zeros(len(net.dep_t), np.int64); net._f = np.zeros(len(net.dep_t))
+        z, zf = net._z, net._f; rp = np.array([0.0, 1800.0, 0.0])
+        lt = np.zeros((1, 2)); sl = np.array([0.0, 1.0])
         self.gen += 1
         a, k = _legr(here, t, trip, tgt, self.X, net.pp_ptr, net.pp_lst, net.dep_t, net.arr_t, net.dep_s, net.arr_s, net.trip,
-                     m["chg"], m["fp_ptr"], m["fp_to"], m["fp_t"], z, z, pb, rp, *self.ws, self.gen, ob, oe, ow, pen)
+                     m["chg"], m["fp_ptr"], m["fp_to"], m["fp_t"], z, z, z, lt, sl, zf, rp, *self.ws, self.gen, ob, oe, ow, pen)
         if a >= INF: return None
         if commit:
             for q in range(k - 1, -1, -1): self.mark(int(ob[q]), int(oe[q]))
