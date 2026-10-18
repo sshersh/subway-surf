@@ -1,0 +1,3 @@
+stations required 475, covered 475, missing []
+walks 27, longest 1521 m
+PASS
