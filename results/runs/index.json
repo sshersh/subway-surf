@@ -286,5 +286,41 @@
   "walks": 29,
   "passed_only": 20,
   "file": "202610160833-express-3.json"
+ },
+ {
+  "id": "202610180655-local",
+  "created": "2026-10-18T06:55:48-07:00",
+  "rules": "local",
+  "label": "Multi-start search, Guinness rules (stop at every station)",
+  "method": "560 short anneals on 20 GitHub Actions runners from diverse seeds + refinement of the top 8; no safety buffer",
+  "transfers": "MTA min_transfer_time (60 s default)",
+  "start_fixed": "",
+  "total_s": 88350,
+  "start": "07:35:00",
+  "end": "32:07:30",
+  "start_station": "Far Rockaway-Mott Av",
+  "end_station": "South Ferry",
+  "rides": 69,
+  "walks": 27,
+  "passed_only": 0,
+  "file": "202610180655-local.json"
+ },
+ {
+  "id": "202610180655-express",
+  "created": "2026-10-18T06:55:48-07:00",
+  "rules": "express",
+  "label": "Multi-start search, express rules (robust)",
+  "method": "560 short anneals on 20 GitHub Actions runners from diverse seeds + refinement; robust objective (hard slack + expected miss cost)",
+  "transfers": "realistic per-complex table",
+  "start_fixed": "",
+  "total_s": 92400,
+  "start": "06:48:30",
+  "end": "32:28:30",
+  "start_station": "Rockaway Park-Beach 116 St",
+  "end_station": "Pelham Bay Park",
+  "rides": 52,
+  "walks": 22,
+  "passed_only": 25,
+  "file": "202610180655-express.json"
  }
 ]
