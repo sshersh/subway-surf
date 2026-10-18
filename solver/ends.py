@@ -14,7 +14,7 @@ from expr import FastX, replay_cpx
 
 
 class Ends:
-    def __init__(self, end, express=False, path="model"):
+    def __init__(self, end, express=False, path="model"):  # path: model prefix (cwd-relative)
         self.F = FastX(path) if express else Fast(path)
         self.end, self.express = end, express
         self.ob = np.zeros(64, np.int64); self.oe = np.zeros(64, np.int64); self.ow = np.zeros(64, np.int64)
@@ -68,6 +68,12 @@ if __name__ == "__main__":
     express = "--express" in args
     if express: args.remove("--express")
     i = args.index("--end"); END = int(args[i + 1]); del args[i:i + 2]
+    TMIN, TMAX = 0.0, 20.0     # allowed start window (hours)
+    for k in ("--tmin", "--tmax"):
+        if k in args:
+            i = args.index(k); v = float(args[i + 1]); del args[i:i + 2]
+            if k == "--tmin": TMIN = v
+            else: TMAX = v
     seed_file, rng_seed, minutes, out, T_HI, T_LO = args[0], int(args[1]), float(args[2]), args[3], float(args[4]), float(args[5])
     S = Ends(END, express); rng = np.random.default_rng(rng_seed)
     raw = np.load(seed_file).astype(np.int64)
@@ -75,7 +81,8 @@ if __name__ == "__main__":
     if order[-1] != END:   # keep the finish last in the order too
         order = np.concatenate([order[order != END], [END]])
     n = len(order)
-    t0 = min(range(3 * 3600, 15 * 3600, 300), key=lambda t: S.full(order, t))
+    lo, hi_t = int(TMIN * 3600), int(TMAX * 3600)
+    t0 = min(range(lo, hi_t + 1, 300), key=lambda t: S.full(order, t))
     cur = S.full(order, t0); best = (cur, order.copy(), t0)
     print(f"start {cur/3600:.3f} h t0 {t0/3600:.2f}", flush=True)
     save = lambda: np.save(out, np.concatenate([[best[2]], best[1]]))
@@ -99,7 +106,7 @@ if __name__ == "__main__":
         elif r < 0.96:
             i, j = sorted(rng.integers(1, hi, 2)); o = order.copy(); o[i], o[j] = o[j], o[i]; p = int(i)
         else:
-            nt0 = int(np.clip(t0 + rng.integers(-1800, 1801), 0, 20 * 3600)); p = 0
+            nt0 = int(np.clip(t0 + rng.integers(-1800, 1801), lo, hi_t)); p = 0
         assert o[0] == order[0] and o[-1] == END
         c = S.try_(o, nt0, p if nt0 == t0 else 0); it += 1
         if c < INF and (c <= cur or rng.random() < math.exp((cur - c) / T)):
