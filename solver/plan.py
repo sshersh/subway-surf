@@ -42,9 +42,9 @@ def run(cmd, cwd):
     return r.stdout
 
 
-def build(d, gtfs, changes, express):
+def build(d, gtfs, changes, express, extra=()):
     os.makedirs(d, exist_ok=True)
-    run([f"{HERE}/model.py", gtfs, "model"] + (["--changes", changes] if changes else []), d)
+    run([f"{HERE}/model.py", gtfs, "model"] + (["--changes", changes] if changes else []) + list(extra), d)
     if express:
         run([f"{HERE}/passes.py", gtfs, "model"], d)
     return json.load(open(f"{d}/model.json"))
@@ -191,6 +191,8 @@ def main():
     ap.add_argument("--resolve", action="store_true", help="solve even when the last plan is unaffected (it is then the warm seed)")
     ap.add_argument("--robust", action="store_true", help="plan on the robust objective (hard slack + expected real-day loss, robust.py)")
     ap.add_argument("--seeds", nargs="*", default=[], help="extra seed solutions (.npy: [t0, order...] on this station list)")
+    ap.add_argument("--local-transfers", choices=["realistic", "mta"], default="realistic",
+                    help="transfer times for the local (Guinness) rules: mta = MTA min_transfer_time, the assumption the saved best local route was solved under")
     a = ap.parse_args()
     global ROBUST_ON
     ROBUST_ON = a.robust
@@ -201,6 +203,10 @@ def main():
     t_start = time.time()
     d = f"{work}/model"
     meta = build(d, gtfs, changes if ch["changes"] else None, "express" in a.rules)
+    dirs = {"express": d, "local": d}
+    if "local" in a.rules and a.local_transfers == "mta":   # local rules on their own timetable model (same trips and stations)
+        dirs["local"] = f"{work}/model_local"
+        build(dirs["local"], gtfs, changes if ch["changes"] else None, False, ["--mta-transfers"])
     names = dict(zip(meta["stations"], meta["names"]))
     base_names = {s["stop_id"]: s["stop_name"] for s in json.load(open(f"{gtfs}/stops.json"))}
     nm = lambda s: names.get(s) or base_names.get(s) or base_names.get(s[:-1], s)
@@ -209,18 +215,18 @@ def main():
                "not_modeled": ch["not_modeled"], "dropped": [{"id": s, "name": nm(s)} for s in meta.get("dropped", [])],
                "stations": len(meta["stations"]), "rules": {}}
 
-    fresh_box = []
-    def fresh_seed():   # a fresh line-aware tour on this timetable, so the plan isn't tied to the normal route's shape
-        if not fresh_box:
+    fresh_box = {}
+    def fresh_seed(dd):   # a fresh line-aware tour on this timetable, so the plan isn't tied to the normal route's shape
+        if dd not in fresh_box:
             t = time.time()
-            run([f"{HERE}/gseed.py", gtfs, "run", "1", "0.5"], d)
-            fresh_box.append(np.load(f"{d}/run_gseed.npy")[0].astype(np.int64))
+            run([f"{HERE}/gseed.py", gtfs, "run", "1", "0.5"], dd)
+            fresh_box[dd] = np.load(f"{dd}/run_gseed.npy")[0].astype(np.int64)
             print(f"fresh line-aware seed: {time.time() - t:.0f} s", flush=True)
-        return fresh_box[0]
+        return fresh_box[dd]
 
     jobs = {}
     for rules in a.rules:
-        X = rules == "express"
+        X = rules == "express"; d = dirs[rules]
         cur = Scorer(d, X)
         scored = []; fix = 0; sfx = "" if rules == "local" else "_" + rules
         prev_route = os.path.join(a.prev or "", f"route{sfx}.json")
@@ -239,10 +245,19 @@ def main():
                 if state == "same" and a.resolve:
                     state, P = "diverges", 0
                 if state == "same":
+                    # the saved best route (results/) may have improved since the last plan was made: if it
+                    # is faster on this timetable, re-plan from it instead of keeping the last plan
+                    lc = cur.cost(order, t0)
+                    sbc = [c for lab2, o2, t2 in cands if lab2.startswith("saved best")
+                           for c in [cur.best_start(cur.order(o2), t2)[0]] if c is not None]
+                    if sbc and lc is not None and min(sbc) < lc - 60:
+                        print(f"{rules}: saved best ({min(sbc)/3600:.3f} h) beats the unchanged last plan ({lc/3600:.3f} h): re-planning", flush=True)
+                        state, P = "diverges", 0
+                if state == "same":
                     scored = [(cur.cost(order, t0), "last plan, unchanged", order, t0)]; fix = -1; break
                 if state == "diverges":
                     scored.append((cur.cost(order, t0), "last plan", order, t0)); fix = P; continue
-            order = fresh_seed() if o is None else cur.order(o)
+            order = fresh_seed(d) if o is None else cur.order(o)
             c, t1 = cur.best_start(order, t0)
             if c is None:   # a station loses service before this order gets there: move it earlier
                 order, ok = repair(d, order, t0)
@@ -274,7 +289,7 @@ def main():
         jobs[rules] = (seed, procs, info, X)
 
     for rules, (seed, procs, info, X) in jobs.items():
-        cur = Scorer(d, X)
+        d = dirs[rules]; cur = Scorer(d, X)
         best = (info["seed_s"], seed)
         for o, p in procs:
             log, err = p.communicate()
@@ -293,6 +308,7 @@ def main():
         json.dump(r, open(route, "w"), separators=(",", ":"))
         json.dump({"t0": int(s[0]), "order": [cur.st[i] for i in s[1:]], "hash": ch["hash"]}, open(f"{out}/solution{sfx}.json", "w"))
         info.update({"total_s": r["stats"]["total_s"], "route": os.path.basename(route), "verify": verdict,
+                     "transfers": "MTA min_transfer_time" if rules == "local" and a.local_transfers == "mta" else "realistic",
                      "start": r["stats"]["start"], "start_station": r["stats"]["start_station"], "end_station": r["stats"]["end_station"]})
         print(f"{rules}: {info['total_s']/3600:.3f} h (seed {info['seed_s']/3600:.3f} h, {info['seed']}), verify {verdict}", flush=True)
     summary["solved_at"] = int(time.time()); summary["seconds"] = round(time.time() - t_start)
