@@ -1,24 +1,48 @@
-== robust: plan 25:57, mean loss per run 10:34 over 14 runs
-   wait      -2:48  (day -2:04, night -0:44)
-   run       0:33  (day 0:20, night 0:12)
-   replaced  0:46  (day 0:28, night 0:18)
-   re-plan residual 12:03
-   by line (wait+run+replaced, per run): L 22m, 3 13m, 6 11m, R 6m, 7 1m, N 1m, Z 0m, B 0m, FS -2m, W -2m
+== n: plan 25:15, mean loss per run 4:17 over 14 runs
+   wait      4:14  (day 3:10, night 1:03)
+   run       0:24  (day 0:06, night 0:17)
+   replaced  8:03  (day 3:55, night 4:08)
+   unattributed (planned slack absorbed, double counts; re-plan cascade when replanning) -8:25
+   by line (wait+run+replaced, per run): F 170m, 6 114m, 5 108m, 3 63m, D 52m, Q 43m, N 31m, L 27m, 4 23m, 2 21m
    worst single boardings:
-     +120 min wait 3 34 St-Penn Station -> Harlem-148 St at 28:45 (2026-10-07 +0)
-     +50 min replaced L 14 St-Union Sq -> Canarsie-Rockaway Pkwy at 37:04 (2026-10-07 +30)
-     +44 min replaced N Coney Island-Stillwell Av -> 20 Av at 37:41 (2026-10-07 -10)
-     +41 min replaced 6 Pelham Bay Park -> 116 St at 27:47 (2026-10-07 +20)
-     +39 min replaced L Canarsie-Rockaway Pkwy -> 8 Av at 11:45 (2026-10-08 -30)
-== hand: plan 25:38, mean loss per run 9:37 over 14 runs
-   wait      -0:58  (day -0:39, night -0:18)
-   run       0:37  (day 0:21, night 0:15)
-   replaced  0:58  (day 0:43, night 0:14)
-   re-plan residual 9:00
-   by line (wait+run+replaced, per run): L 24m, 6 10m, R 8m, F 6m, 2 6m, FS 6m, H 6m, 3 5m, 1 5m, E 3m
+     +202 min replaced F Roosevelt Island -> Jackson Hts-Roosevelt Av at 25:14 (2026-10-08 -20)
+     +196 min replaced 6 Grand Central-42 St -> Westchester Sq-E Tremont Av at 27:43 (2026-10-08 -30)
+     +192 min replaced F Roosevelt Island -> Jackson Hts-Roosevelt Av at 25:14 (2026-10-08 -10)
+     +190 min replaced 5 Eastchester-Dyre Av -> West Farms Sq-E Tremont Av at 22:17 (2026-10-08 -20)
+     +189 min replaced F 42 St-Bryant Pk -> Roosevelt Island at 25:00 (2026-10-08 -20)
+== robust: plan 25:57, mean loss per run 5:16 over 14 runs
+   wait      3:39  (day 2:30, night 1:08)
+   run       0:35  (day 0:08, night 0:26)
+   replaced  7:03  (day 4:17, night 2:46)
+   unattributed (planned slack absorbed, double counts; re-plan cascade when replanning) -6:02
+   by line (wait+run+replaced, per run): N 184m, 6 170m, 3 75m, D 39m, L 32m, 5 30m, F 23m, 4 23m, 7 18m, A 15m
    worst single boardings:
-     +271 min replaced 1 207 St -> Van Cortlandt Park-242 St at 9:48 (2026-10-08 +30)
-     +69 min wait L Sutter Av -> Broadway Junction at 14:34 (2026-10-08 -10)
-     +52 min wait 7 34 St-Hudson Yards -> Flushing-Main St at 29:25 (2026-10-07 -20)
-     +49 min replaced FS Franklin Av -> Botanic Garden at 27:28 (2026-10-08 +30)
-     +47 min wait L Myrtle-Wyckoff Avs -> Halsey St at 14:29 (2026-10-08 +10)
+     +185 min replaced 6 Grand Central-42 St -> Zerega Av at 27:27 (2026-10-07 -20)
+     +175 min replaced 6 Grand Central-42 St -> Zerega Av at 27:27 (2026-10-07 -10)
+     +169 min replaced N 59 St -> 45 St at 31:41 (2026-10-07 -20)
+     +165 min replaced 6 Grand Central-42 St -> Zerega Av at 27:27 (2026-10-07 +0)
+     +159 min replaced N 59 St -> 45 St at 31:41 (2026-10-07 -10)
+== hand: plan 25:38, mean loss per run 6:03 over 14 runs
+   wait      2:54  (day 1:37, night 1:17)
+   run       0:16  (day 0:09, night 0:06)
+   replaced  4:22  (day 1:49, night 2:33)
+   unattributed (planned slack absorbed, double counts; re-plan cascade when replanning) -1:30
+   by line (wait+run+replaced, per run): W 120m, E 75m, F 69m, A 28m, M 22m, L 22m, J 21m, 7 18m, 3 17m, C 13m
+   worst single boardings:
+     +128 min replaced W Queensboro Plaza -> Astoria-Ditmars Blvd at 23:36 (2026-10-07 +30)
+     +128 min replaced 7 Flushing-Main St -> Queensboro Plaza at 23:01 (2026-10-07 +30)
+     +124 min replaced W Astoria-Ditmars Blvd -> Whitehall St-South Ferry at 23:49 (2026-10-07 +30)
+     +107 min replaced E Jamaica Center-Parsons/Archer -> Briarwood at 25:18 (2026-10-08 -30)
+     +106 min replaced E Jamaica Center-Parsons/Archer -> Briarwood at 26:29 (2026-10-07 +30)
+== d_best: plan 24:47, mean loss per run 7:37 over 14 runs
+   wait      5:10  (day 3:36, night 1:33)
+   run       0:29  (day 0:16, night 0:12)
+   replaced  34:35  (day 25:57, night 8:38)
+   unattributed (planned slack absorbed, double counts; re-plan cascade when replanning) -32:37
+   by line (wait+run+replaced, per run): N 1108m, F 488m, GS 201m, 6 138m, 3 111m, L 57m, C 54m, D 53m, A 44m, 5 30m
+   worst single boardings:
+     +565 min replaced N 8 Av -> Jay St-MetroTech at 37:16 (2026-10-07 +10)
+     +555 min replaced N 8 Av -> Jay St-MetroTech at 37:16 (2026-10-07 +20)
+     +554 min replaced N Fort Hamilton Pkwy -> 8 Av at 36:52 (2026-10-07 +10)
+     +545 min replaced N 8 Av -> Jay St-MetroTech at 37:16 (2026-10-07 +30)
+     +544 min replaced N Fort Hamilton Pkwy -> 8 Av at 36:52 (2026-10-07 +20)

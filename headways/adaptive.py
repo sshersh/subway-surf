@@ -16,7 +16,10 @@ Rider policy:
      station, never boarding before arrival + the realistic change time (staying on the same real
      train is free). If that line has no such train within 3 h, or one leaves 10+ min after the plan
      and another way arrives 5+ min sooner, get there by the earliest real trains of any line.
-  3. Re-plan when the rider arrives more than LATE s after the plan, when a ride had to be replaced, or
+  3. (Default: no mid-route re-planning. Measured on the 14 real-day runs it did worse than following the
+     plan, see results/FINAL.md; `--replan` restores it. The rider still re-plans when the plan runs out
+     with stations left, with a local search; `--dumb` turns that search off for the baseline.)
+     With --replan: re-plan when the rider arrives more than LATE s after the plan, when a ride had to be replaced, or
      when the plan runs out with stations left. The rider compares, on the static timetable, (a) keeping
      the remaining planned rides (next train of each planned line, then the station order for anything
      they miss) with (b) a fresh plan: a short local search on the remaining station order (robust
@@ -30,7 +33,7 @@ Day pairs: the CSV for day D holds trips that start on D (observed until ~05:30 
 run that starts on D needs D+1's trips too. When D+1's file is missing, the latest available file
 for another weekday is used in its place, shifted to D+1 (marked "proxy" in the output).
 """
-import argparse, csv, glob, io, json, math, os, sys, collections, statistics, time
+import multiprocessing as mp, zlib, argparse, csv, glob, io, json, math, os, sys, collections, statistics, time
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import numpy as np
@@ -43,10 +46,17 @@ from engine import INF
 
 ET = ZoneInfo("America/New_York")
 RECORD = 22 * 3600 + 14 * 60
-LATE = 180
+LATE = int(os.environ.get("LATE", 180))
 EARLY = 5 * 3600   # real data before this time on the run day is incomplete; the timetable stands in
 CAP = 40 * 3600
 FORCE = "--force-replan" in sys.argv
+DUMB = "--dumb" in sys.argv       # baseline rider: keeps the plan order, no search even at the end of the plan
+REPLAN = "--replan" in sys.argv   # re-plan mid-route after every late/replaced ride (measured: worse than following, see docs/evaluator.md)
+POSTPONE = 1200      # s: a planned train this much later than planned/ready is not waited for
+POSTPONE_BY = 40
+POSTPONE_ON = int(os.environ.get("POSTPONE_ON", 0))   # off: postponing targets made real-day runs worse
+KEEP_ONLY = int(os.environ.get("KEEP_ONLY", 0))
+MARGIN = int(os.environ.get("MARGIN", 900))          # s: a fresh plan must beat keeping the plan by this much     # order positions a postponed target moves back
 LS_MOVES = int(os.environ.get("LS_MOVES", 800)); LS_H = int(os.environ.get("LS_H", 80))   # rider's re-plan search   # diagnostic: re-plan after every ride     # a run still going after 40 h is scored as failed (48 h)
 base = lambda r: r[:-1] if len(r) == 2 and r.endswith("X") else r
 
@@ -379,7 +389,7 @@ class Rider:
             cand = rem
         f = self.finish(cand, here, tt, st_trip, self.visited)
         self.log("proj", "keep", best[0] if best[0] < INF else -1, "fresh", f if f < INF else -1)
-        if f < best[0]:
+        if f < best[0] - (MARGIN if best[1] is not None else 0) and not (KEEP_ONLY and best[1] is not None):
             P.set_state(here, tt, self.visited, st_trip)
             r = record(P, cand, 0, (int(here), int(tt), int(st_trip), self.visited), partial=True)
             if r is not None:
@@ -403,17 +413,17 @@ class Rider:
         unshifted start; times move with the start offset."""
         P, net, m = self.P, self.net, self.P.m
         here, t, rtrip = int(order[0]), int(t0), -1      # rtrip: real trip being ridden, -1 at start
-        replans = searches = replaced = missing = keeps = 0
+        replans = searches = replaced = missing = keeps = postponed = 0
         order = np.array(order, dtype=np.int64)
         plan = list(rides); walked = True; need = False
         steps = 0; wall = time.time(); last_state = None; stuck = 0
         self.loss = []
         while not self.visited.all():
             steps += 1
-            if t > t0 + CAP or steps > 4000 or time.time() - wall > 1500: break
+            if t > t0 + CAP or steps > 4000 or time.time() - wall > 900: break
             if rtrip == -1 or walked: st_trip = -1
             else: st_trip = self.static_trip(here, t - (86400 if t >= 40 * 3600 else 0))
-            if need or not plan:
+            if (need and REPLAN and not DUMB) or not plan:
                 state = (here, t, int(self.visited.sum()))
                 stuck = stuck + 1 if state == last_state else 0; last_state = state
                 if stuck >= 3:   # re-planning makes no progress from here: give up the next station
@@ -459,6 +469,21 @@ class Rider:
                         if best is None or net.arr_t[x] < best[0]: best = (int(net.arr_t[x]), c, x)
                         break
                     x = int(net.nxt[x]); hops += 1
+            if POSTPONE_ON and not DUMB and (best is None or (int(net.dep_t[best[1]]) > max(ready, pdep) + POSTPONE and int(net.trip[best[1]]) != rtrip)):
+                # planned line 20+ min late or not running: a human doesn't stand and wait; if another
+                # way gets there within the window take it, else postpone this target and re-plan
+                alt = self.any_train(here, t, -1 if walked else rtrip, se, commit=False)
+                if alt is None or alt[0] > max(ready, pdep) + POSTPONE + (parr - pdep):
+                    tgt_s = [x for x in order if not self.visited[x]]
+                    late_tg = [x for x in tgt_s[:3] if x == se] or [se]
+                    lst = [x for x in tgt_s if x not in late_tg]
+                    k_ = min(len(lst), POSTPONE_BY)
+                    order = np.array(lst[:k_] + late_tg + lst[k_:], dtype=np.int64)
+                    self.loss.append(("postponed", rname, int(R_.is_night(t)), 0, int(t), P.meta["names"][sb], P.meta["names"][se]))
+                    self.log("postpone", rname, P.meta["names"][se], t)
+                    need = True; postponed += 1
+                    if postponed > 60: break
+                    continue
             if best and int(net.dep_t[best[1]]) > max(ready, pdep) + 600:   # planned line 10+ min late: is another way much sooner?
                 alt = self.any_train(here, t, -1 if walked else rtrip, se, commit=False)
                 if alt is not None and alt[0] < best[0] - 300: best = None
@@ -488,10 +513,19 @@ class Rider:
         fin = int(self.last_new - self.first)
         self.steps = steps
         return {"finish_s": fin if not missing else 48 * 3600, "raw_finish_s": fin, "start": int(self.first), "replans": replans,
-                "searches": searches, "kept": keeps, "replaced": replaced, "unreached": missing, "loss": self.loss}
+                "searches": searches, "kept": keeps, "postponed": postponed, "replaced": replaced, "unreached": missing, "loss": self.loss}
 
 
 # --------------------------------------------------------------------------------------------- main
+_JOB = None
+def _one(job):
+    d, off = job; P, nets, X, order, t0, rides, nosearch = _JOB; net, proxy = nets[d]
+    rd = Rider(P, net, X, np.random.default_rng(zlib.crc32(f"{d}{off}".encode())), search=not nosearch)
+    res = rd.run(order, t0 + 60 * off, [(a_, b_, c_, d_ + 60 * off, e_ + 60 * off) for a_, b_, c_, d_, e_ in rides])
+    res.update(day=d, offset=off, proxy=proxy)
+    return res
+
+
 def day_files(data, d):
     tr = glob.glob(os.path.join(data, "**", f"*{d}_trips.csv"), recursive=True)
     st = glob.glob(os.path.join(data, "**", f"*{d}_stop_times.csv"), recursive=True)
@@ -504,7 +538,7 @@ def main():
     ap.add_argument("--routes", nargs="+", required=True, help="label:route.json[:weight]")
     ap.add_argument("--days", nargs="+", default=["2026-10-07", "2026-10-08"])
     ap.add_argument("--offsets", type=int, nargs="+", default=[-30, -20, -10, 0, 10, 20, 30])
-    ap.add_argument("--no-search", action="store_true"); ap.add_argument("--out", default=None)
+    ap.add_argument("--no-search", action="store_true"); ap.add_argument("--replan", action="store_true"); ap.add_argument("--procs", type=int, default=2); ap.add_argument("--dumb", action="store_true", help="baseline rider: no re-planning"); ap.add_argument("--out", default=None)
     ap.add_argument("--force-replan", action="store_true", help="diagnostic: re-plan after every ride")
     ap.add_argument("--static", action="store_true", help="validation: replay on the static timetable instead of real movements")
     a = ap.parse_args()
@@ -537,16 +571,16 @@ def main():
         order = [sid[s] for s in r["order"] if s in sid]; t0 = int(r["t0"])
         rides = [(base(x[0]), sid[x[1]], sid[x[2]], int(x[3]), int(x[4])) for x in r["rides"]]
         P = Planner(a.model, express=X, weight=w)
-        runs = []
-        for d, (net, proxy) in nets.items():
-            for off in a.offsets:
-                t = time.time()
-                R_ = Rider(P, net, X, np.random.default_rng(abs(hash((d, off))) % 2**32), search=not a.no_search)
-                res = R_.run(order, t0 + 60 * off, [(a_, b_, c_, d_ + 60 * off, e_ + 60 * off) for a_, b_, c_, d_, e_ in rides])
-                res.update(day=d, offset=off, proxy=proxy)
+        jobs = [(d, off) for d in nets for off in a.offsets]
+        global _JOB; _JOB = (P, nets, X, order, t0, rides, a.no_search or DUMB)
+        t = time.time()
+        with mp.get_context("fork").Pool(min(a.procs, len(jobs))) as pool:
+            runs = []
+            for res in pool.imap(_one, jobs):
                 runs.append(res)
-                print(f"  {label} {d} {off:+d}: {res['finish_s']/3600:.2f} h  replans {res['replans']} searches {res['searches']}"
-                      f" replaced {res['replaced']} [{time.time()-t:.0f} s]", flush=True)
+                print(f"  {label} {res['day']} {res['offset']:+d}: {res['finish_s']/3600:.2f} h  replans {res['replans']}"
+                      f" postponed {res['postponed']} replaced {res['replaced']}", flush=True)
+        print(f"  [{time.time()-t:.0f} s]", flush=True)
         v = sorted(x["finish_s"] for x in runs); k = len(v)
         pct = lambda p: v[min(k - 1, int(math.ceil(p / 100 * k)) - 1)]
         out[label] = {"path": path, "plan_s": r["stats"]["total_s"], "rules": "express" if X else "local",
