@@ -1,0 +1,160 @@
+name: Multi-start route search
+
+# Many short anneals from diverse starting routes, spread over 20 parallel runners (the free-plan
+# limit), then a refinement stage from the best results. Express rules (pass-through counts, robust
+# objective) on jobs 0-9 and Guinness rules (stop at every station, MTA transfer times, no buffer) on
+# jobs 10-19. Results go to the multistart-results branch (results/multistart/).
+#
+# Why short runs: annealing logs showed most gains in the first 20-30 min, a converged run never
+# improved when continued, and different starting routes ended up to 2.2 h apart.
+on:
+  workflow_dispatch:
+    inputs:
+      search_hours:
+        description: "Stage 1 hours per runner"
+        default: "4.5"
+      refine_hours:
+        description: "Stage 2 hours per runner"
+        default: "1.5"
+      minutes:
+        description: "Minutes per start (stage 1)"
+        default: "25"
+  push:
+    branches: [multistart]
+    paths: [".github/workflows/multistart.yml"]
+
+permissions:
+  contents: write
+
+env:
+  SEARCH_HOURS: ${{ inputs.search_hours || '4.5' }}
+  REFINE_HOURS: ${{ inputs.refine_hours || '1.5' }}
+  MINUTES: ${{ inputs.minutes || '25' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - name: GTFS, dependencies, models, line-aware seeds
+        run: |
+          pip install -r requirements.txt
+          npm pack mta-gtfs-static --silent
+          mkdir -p gtfs && tar xzf mta-gtfs-static-*.tgz -C gtfs
+          python3 -c "import zipfile; zipfile.ZipFile('gtfs/package/gtfs_json.zip').extractall('gtfs')"
+          G=$PWD/gtfs/gtfs_json/subway; S=$PWD/solver
+          mkdir -p work/mx work/ml work/gtfs && cp -r $G work/gtfs/
+          (cd work/mx && python3 $S/model.py $G model && python3 $S/passes.py $G model)
+          (cd work/ml && python3 $S/model.py $G model --mta-transfers)
+          for bf in 0.3 0.5 0.8; do
+            (cd work/mx && python3 $S/tseed.py $G t$bf 1 $bf --passes model_pass.npz > /dev/null) &
+            (cd work/ml && python3 $S/gseed.py $G g$bf 1 $bf > /dev/null) &
+          done
+          wait
+          python3 -c "import json; print(json.load(open('$G/feed_info.json'))[0]['feed_version'])" > work/feed_version.txt
+          ls work/mx work/ml; cat work/feed_version.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: work, path: work, retention-days: 5 }
+
+  search:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - uses: actions/download-artifact@v4
+        with: { name: work, path: work }
+      - name: Multi-start anneals
+        run: |
+          pip install -r requirements.txt
+          R=$PWD; J=${{ matrix.job }}
+          if [ $J -lt 10 ]; then
+            cd work/mx; RULES=express
+            SEEDS="t0.3_gseed.npy t0.5_gseed.npy t0.8_gseed.npy $R/results/final_express.json $R/results/robust_express.json $R/results/hand_express.json $R/results/sensitivity/d_best.json"
+          else
+            cd work/ml; RULES=local
+            SEEDS="g0.3_gseed.npy g0.5_gseed.npy g0.8_gseed.npy $R/results/classB/run3_mta_free.npy $R/results/classB/run1_mta_fixed_ends.npy"
+          fi
+          python3 $R/solver/multistart.py --rules $RULES --job $J --hours $SEARCH_HOURS --minutes $MINUTES \
+            --procs $(nproc) --out $R/out/search --seeds $SEEDS --kick 0 10
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: "search-${{ matrix.job }}", path: out, retention-days: 5 }
+
+  refine:
+    needs: [build, search]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - uses: actions/download-artifact@v4
+        with: { name: work, path: work }
+      - uses: actions/download-artifact@v4
+        with: { pattern: "search-*", path: all, merge-multiple: true }
+      - name: Kick and re-anneal the best routes
+        run: |
+          pip install -r requirements.txt
+          R=$PWD; J=${{ matrix.job }}
+          if [ $J -lt 10 ]; then RULES=express; cd work/mx; else RULES=local; cd work/ml; fi
+          python3 $R/solver/ms_collect.py --in $R/all --rules $RULES --top 8 --elites $R/elites > /dev/null
+          python3 $R/solver/multistart.py --rules $RULES --job $((J + 100)) --hours $REFINE_HOURS --minutes 20 \
+            --procs $(nproc) --out $R/out/refine --elites $R/elites/*.npy --kick 1 6 --thi 60 --tlo 2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: "refine-${{ matrix.job }}", path: out, retention-days: 5 }
+
+  collect:
+    needs: [build, search, refine]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - uses: actions/download-artifact@v4
+        with: { name: work, path: work }
+      - uses: actions/download-artifact@v4
+        with: { pattern: "*-*", path: all, merge-multiple: true }
+      - name: Rank, export, verify
+        run: |
+          pip install -r requirements.txt
+          R=$PWD; G=$(ls -d $R/work/gtfs/*); OUT=$R/ms_results; mkdir -p $OUT
+          echo "# Multi-start search ($(date -u +%Y-%m-%dT%H:%MZ), feed $(cat work/feed_version.txt), run ${{ github.run_id }})" > $OUT/README.md
+          echo "" >> $OUT/README.md
+          for RULES in express local; do
+            if [ $RULES = express ]; then D=work/mx; EX="--express --robust"; VX=--express; else D=work/ml; EX="--robust --soft --weight 0"; VX=""; fi
+            (cd $D && python3 $R/solver/ms_collect.py --in $R/all --rules $RULES --md $OUT/README.md) || continue
+            BEST=$(cd $D && python3 -c "import json; print(json.load(open('best_$RULES.json'))['path'])")
+            cp $BEST $OUT/best_$RULES.npy
+            (cd $D && python3 $R/solver/export.py $OUT/best_$RULES.npy $OUT/best_$RULES.json $EX)
+            python3 solver/verify.py $G $OUT/best_$RULES.json $VX | tail -3 | tee -a $OUT/verify_$RULES.txt
+            python3 -c "import json; s=json.load(open('$OUT/best_$RULES.json'))['stats']; t=s['total_s']; print(f'**$RULES plan: {t//3600}:{t%3600//60:02d}**, {s[\"start\"]} {s[\"start_station\"]} -> {s[\"end\"]} {s[\"end_station\"]}, stations {s[\"stations\"]}\n')" >> $OUT/README.md
+          done
+          mkdir -p $OUT/runs && cp all/*/job*.json $OUT/runs/ 2>/dev/null || true
+          cat $OUT/README.md
+      - name: Push to multistart-results
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin multistart-results || true
+          if git rev-parse --verify origin/multistart-results >/dev/null 2>&1; then git checkout -B multistart-results origin/multistart-results; else git checkout --orphan multistart-results; git rm -rfq .; fi
+          mkdir -p results/multistart && rm -rf results/multistart/* && cp -r ms_results/* results/multistart/
+          git add results/multistart && git commit -qm "Multi-start search results (run ${{ github.run_id }})" && git push origin multistart-results
