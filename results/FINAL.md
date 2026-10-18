@@ -37,7 +37,7 @@ Chosen route: `results/final_express.json` (= sensitivity/n; `verify.py --expres
 
 Not with what we have. On paper under express rules the best plan is 24:47 (no slack at all) and the best with realistic
 transfers and slack is 25:15; both are 2.5-3 h over 22:14. On real days the same routes took 29.5-32 h at the median, and not one of
-56 runs finished under 22:14. Every sensitivity (no pass deny list, MTA transfer times, faster running) stayed above 25:15. Getting under
+56 runs finished under 22:14. Every sensitivity re-solve (no pass deny list, MTA transfer times, faster running, no slack) stayed above 24:47. Getting under
 22:14 would need transfers and running faster than the realistic model allows plus a day with almost no delays. Caveats: two weekdays
 of data, feed holes filled from the timetable, street running estimated, and the planner is heuristic, not proven optimal.
 
