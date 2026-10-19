@@ -15,9 +15,6 @@ on:
       refine_hours: { description: "Stage 2 hours per runner", default: "1.5" }
       minutes: { description: "Minutes per start (stage 1)", default: "25" }
       walk_max: { description: "Straight-line cap (m) for walk/run links between stations", default: "2000" }
-  push:
-    branches: [multistart472]
-    paths: [".github/workflows/multistart472.yml"]
 
 permissions:
   contents: write
