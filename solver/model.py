@@ -39,6 +39,8 @@ if LEGACY:
     WALK_SPEED, DETOUR, WALK_MAX, WALK_OVERHEAD, DEFAULT_CHANGE = 1.4, 1.3, 1600, 120, 60
 else:
     WALK_SPEED, DETOUR, WALK_MAX, WALK_OVERHEAD, DEFAULT_CHANGE = R.WALK_SPEED, R.DETOUR, R.WALK_MAX, R.WALK_OVERHEAD, R.SAME_DEFAULT
+if "--walk-max" in sys.argv:   # straight-line cap (m) for generated walk/run links
+    WALK_MAX = float(sys.argv[sys.argv.index("--walk-max") + 1])
 
 from stations472 import alias
 parent = {s["stop_id"]: alias(s["parent_station"] or s["stop_id"]) for s in stops}

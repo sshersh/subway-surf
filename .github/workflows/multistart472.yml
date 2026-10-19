@@ -4,7 +4,7 @@ name: Multi-start search, Guinness rules on the 472-station count
 # Differences from multistart.yml:
 #   - MERGE_472=1: the official 472-station count. Queensboro Plaza, 145 St and W 4 St are one station
 #     each (GTFS splits them by line at identical coordinates), see solver/stations472.py.
-#   - time-aware seeds: tseed.py --times from the 24:32 route's visit times, alongside fresh gseed tours
+#   - time-aware seeds: tseed.py --times from the saved best route's visit times, alongside fresh gseed tours
 #     and the saved best routes.
 #   - refinement from the top 20 instead of the top 8.
 # Results go to the multistart-results branch under results/multistart472/.
@@ -14,6 +14,7 @@ on:
       search_hours: { description: "Stage 1 hours per runner", default: "4.5" }
       refine_hours: { description: "Stage 2 hours per runner", default: "1.5" }
       minutes: { description: "Minutes per start (stage 1)", default: "25" }
+      walk_max: { description: "Straight-line cap (m) for walk/run links between stations", default: "2000" }
   push:
     branches: [multistart472]
     paths: [".github/workflows/multistart472.yml"]
@@ -26,6 +27,8 @@ env:
   REFINE_HOURS: ${{ inputs.refine_hours || '1.5' }}
   MINUTES: ${{ inputs.minutes || '25' }}
   MERGE_472: "1"
+  WALK_MAX_M: ${{ inputs.walk_max || '2000' }}
+  RESULTS_DIR: ${{ (inputs.walk_max || '2000') == '2000' && 'multistart472' || format('multistart472_walk{0}', inputs.walk_max) }}
 
 jobs:
   build:
@@ -43,8 +46,8 @@ jobs:
           python3 -c "import zipfile; zipfile.ZipFile('gtfs/package/gtfs_json.zip').extractall('gtfs')"
           G=$PWD/gtfs/gtfs_json/subway; S=$PWD/solver; R=$PWD
           mkdir -p work/ml work/gtfs && cp -r $G work/gtfs/
-          cd work/ml && python3 $S/model.py $G model --mta-transfers
-          # visit times of the 24:32 route, by station index of this model, for time-aware seeds
+          cd work/ml && python3 $S/model.py $G model --mta-transfers --walk-max $WALK_MAX_M
+          # visit times of the saved best route, by station index of this model, for time-aware seeds
           python3 - <<'EOF'
           import json, sys
           sys.path.insert(0, "../../solver"); from stations472 import alias
@@ -85,7 +88,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           R=$PWD; J=${{ matrix.job }}; cd work/ml
-          SEEDS="t0.3_gseed.npy t0.5_gseed.npy t0.8_gseed.npy g0.3_gseed.npy g0.5_gseed.npy g0.8_gseed.npy $R/results/best_route.json $R/results/classB/run3_mta_free.json"
+          SEEDS="t0.3_gseed.npy t0.5_gseed.npy t0.8_gseed.npy g0.3_gseed.npy g0.5_gseed.npy g0.8_gseed.npy $R/results/best_solution.npy $R/results/best_route.json $R/results/classB/run3_mta_free.json"
           python3 $R/solver/multistart.py --rules local --job $J --hours $SEARCH_HOURS --minutes $MINUTES \
             --procs $(nproc) --out $R/out/search --seeds $SEEDS --kick 0 10
       - uses: actions/upload-artifact@v4
@@ -138,7 +141,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           R=$PWD; G=$(ls -d $R/work/gtfs/*); OUT=$R/ms_results; mkdir -p $OUT; D=work/ml
-          echo "# Multi-start search, Guinness rules, 472 stations ($(date -u +%Y-%m-%dT%H:%MZ), feed $(cat work/feed_version.txt), run ${{ github.run_id }})" > $OUT/README.md
+          echo "# Multi-start search, Guinness rules, 472 stations, walks up to $WALK_MAX_M m ($(date -u +%Y-%m-%dT%H:%MZ), feed $(cat work/feed_version.txt), run ${{ github.run_id }})" > $OUT/README.md
           echo "" >> $OUT/README.md
           (cd $D && python3 $R/solver/ms_collect.py --in $R/all --rules local --md $OUT/README.md)
           BEST=$(cd $D && python3 -c "import json; print(json.load(open('best_local.json'))['path'])")
@@ -153,5 +156,5 @@ jobs:
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin multistart-results
           git checkout -B multistart-results origin/multistart-results
-          mkdir -p results/multistart472 && rm -rf results/multistart472/* && cp -r ms_results/* results/multistart472/
-          git add results/multistart472 && git commit -qm "Multi-start search results, 472 stations (run ${{ github.run_id }})" && git push origin multistart-results
+          mkdir -p results/$RESULTS_DIR && rm -rf results/$RESULTS_DIR/* && cp -r ms_results/* results/$RESULTS_DIR/
+          git add results/$RESULTS_DIR && git commit -qm "Multi-start search results, 472 stations, walks up to $WALK_MAX_M m (run ${{ github.run_id }})" && git push origin multistart-results
