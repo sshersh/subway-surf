@@ -22,7 +22,8 @@ if "--changes" in sys.argv:
     CHANGES = Changes(sys.argv[sys.argv.index("--changes") + 1])
 L = lambda n: json.load(open(f"{SRC}/{n}.json"))
 stops = {s["stop_id"]: s for s in L("stops")}
-parent = {k: (v["parent_station"] or k) for k, v in stops.items()}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from stations472 import alias
+parent = {k: alias(v["parent_station"] or k) for k, v in stops.items()}
 wk = {t["trip_id"]: t["route_id"] for t in L("trips") if t["service_id"] == "Weekday" and t["route_id"] != "SI"}
 dirn = {t["trip_id"]: t["direction_id"] for t in L("trips")}
 ts = lambda x: sum(int(a) * k for a, k in zip(x.split(":"), (3600, 60, 1)))

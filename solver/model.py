@@ -40,7 +40,8 @@ if LEGACY:
 else:
     WALK_SPEED, DETOUR, WALK_MAX, WALK_OVERHEAD, DEFAULT_CHANGE = R.WALK_SPEED, R.DETOUR, R.WALK_MAX, R.WALK_OVERHEAD, R.SAME_DEFAULT
 
-parent = {s["stop_id"]: (s["parent_station"] or s["stop_id"]) for s in stops}
+from stations472 import alias
+parent = {s["stop_id"]: alias(s["parent_station"] or s["stop_id"]) for s in stops}
 trip_info = {t["trip_id"]: t for t in trips if t["service_id"] == "Weekday" and t["route_id"] != "SI"}  # SIR needs the ferry; excluded like the official challenge
 
 seqs = collections.defaultdict(list)
@@ -73,7 +74,7 @@ runs = [(day, t, w) for day, t, v in runs for w in [[x for x in v if x[1] in ser
 stations = [s for s in stops if s["location_type"] == "1" and s["stop_id"] in served]
 sid = {s["stop_id"]: i for i, s in enumerate(stations)}
 N = len(stations)
-all_parents = set(s["stop_id"] for s in stops if s["location_type"] == "1" and not s["stop_id"].startswith("S"))
+all_parents = set(alias(s["stop_id"]) for s in stops if s["location_type"] == "1" and not s["stop_id"].startswith("S"))
 print("weekday-served stations", N, "of", len(all_parents), "missing:", sorted(all_parents - served))
 dropped = sorted(base_served - served)   # no train stops there on the run day: left out
 if dropped:

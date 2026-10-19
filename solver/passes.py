@@ -8,7 +8,7 @@ realistic.PASS_DENY (express on a separate level, tunnel or bypass) never count 
 
     python3 passes.py <gtfs_json_dir> model     -> model_pass.npz (CSR per connection)
 """
-import sys, json, math, collections
+import sys, json, math, collections, os
 import numpy as np
 sys.path.insert(0, __import__("os").path.dirname(__import__("os").path.abspath(__file__)))
 from realistic import PASS_DENY
@@ -22,7 +22,8 @@ stops = {s["stop_id"]: s for s in L("stops")}
 trips = {t["trip_id"]: t for t in L("trips")}
 meta = json.load(open(OUT + ".json")); m = np.load(OUT + ".npz")
 st = meta["stations"]; sid = {s: i for i, s in enumerate(st)}; T = meta["T"]
-parent = {k: (v["parent_station"] or k) for k, v in stops.items()}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from stations472 import alias
+parent = {k: alias(v["parent_station"] or k) for k, v in stops.items()}
 KX = 111_000 * math.cos(math.radians(40.72)); KY = 111_000
 xy = {s: (float(stops[s]["stop_lon"]) * KX, float(stops[s]["stop_lat"]) * KY) for s in st}
 
