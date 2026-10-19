@@ -29,6 +29,7 @@ env:
   PLAN_MINUTES: "10"   # hard cap on annealing time; local and express run side by side
   PLAN_ITERS: "600000" # annealing moves per run; runs also stop early once they stop improving
   PLAN_PROCS: "2"      # parallel annealing runs per rules (runners have 4 cores on public repos)
+  MERGE_472: "1"       # the official 472-station count (solver/stations472.py)
 
 jobs:
   # Planning has its own queue, so a deploy elsewhere in the "pages" group can't cancel it mid-solve.
@@ -70,8 +71,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: plan
-          key: plan-v5-${{ steps.changes.outputs.hash }}
+          key: plan-v6-${{ steps.changes.outputs.hash }}
           restore-keys: |
+            plan-v6-
             plan-v5-
             plan-v4-
             plan-v3-
@@ -98,7 +100,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: plan
-          key: plan-v5-${{ steps.changes.outputs.hash }}
+          key: plan-v6-${{ steps.changes.outputs.hash }}
         continue-on-error: true   # a forced plan can't overwrite an existing cache entry
 
       - name: Fall back to the saved routes
