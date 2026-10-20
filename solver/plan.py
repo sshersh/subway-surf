@@ -318,6 +318,9 @@ def main():
         sfx = "" if rules == "local" else "_" + rules
         route = f"{out}/route{sfx}.json"
         run([f"{HERE}/export.py", best[1], route] + RULES[rules]["flag"] + (ROBUST["flag"] if ROBUST_ON else []), d)
+        if rules == "local":   # drop free detours (same finish, fewer boardings); express routes keep their slack rules
+            try: print(run([f"{HERE}/tidy.py", route, route], d).strip().splitlines()[-1], flush=True)
+            except SystemExit: print(f"{rules}: tidy failed, keeping the exported route", flush=True)
         v = run([f"{HERE}/verify.py", gtfs, route] + RULES[rules]["flag"] + (["--changes", changes] if ch["changes"] else []), d)
         verdict = v.strip().splitlines()[-1]
         r = json.load(open(route)); s = np.load(best[1]).astype(np.int64)

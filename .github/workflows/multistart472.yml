@@ -144,6 +144,7 @@ jobs:
           BEST=$(cd $D && python3 -c "import json; print(json.load(open('best_local.json'))['path'])")
           cp $BEST $OUT/best_local.npy
           (cd $D && python3 $R/solver/export.py $OUT/best_local.npy $OUT/best_local.json --robust --soft --weight 0)
+          (cd $D && python3 $R/solver/tidy.py $OUT/best_local.json $OUT/best_local.json) || true
           python3 solver/verify.py $G $OUT/best_local.json | tail -3 | tee -a $OUT/verify_local.txt
           python3 -c "import json; s=json.load(open('$OUT/best_local.json'))['stats']; t=s['total_s']; print(f'**local plan: {t//3600}:{t%3600//60:02d}**, {s[\"start\"]} {s[\"start_station\"]} -> {s[\"end\"]} {s[\"end_station\"]}, stations {s[\"stations\"]}\n')" >> $OUT/README.md
           mkdir -p $OUT/runs && cp all/*/job*.json $OUT/runs/ 2>/dev/null || true

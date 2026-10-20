@@ -61,7 +61,8 @@ python3 ../headways/adaptive.py --model model --data <subwaydata CSV dir> \
 3. **`solver/engine.py`** replays a station order against the timetable using the Connection Scan Algorithm, compiled with numba. From each point it takes the earliest train to the next station not yet visited, and every stop along the way counts. `solver/fast.py` makes the replay incremental: a change at position *p* re-simulates only from *p* onward, at about 1 ms per evaluation.
 4. **`solver/sa2.py`** runs simulated annealing over the station order and start time. Moves are segment relocation, reversal, swaps and start-time shifts.
    - `solver/sa3.py` is a line-constrained variant built on `fast2.py`. It's more robust to start-time changes but scored worse in testing (29.3 h vs 25.9 h).
-5. **`solver/export.py`** writes viewer rows and an itinerary, then checks the result: walks start where you are, you board after you arrive, times only move forward, and every station is visited.
+5. **`solver/tidy.py`** (local rules) edits the finished route's rides directly: it replaces up to 4 consecutive rides with the fastest way between their ends (or drops them when they start and end at the same place) and keeps the change when every station is still visited and the route finishes no later with fewer boardings or less walking. This removes detours the order-based search leaves in (the replay of a priority order changes everything after a small edit). On the 23:33 route it removed 3 boardings (a Q hop to Brighton-line 7 Av and back, and a 7 local out and back before the express to Flushing) without changing the finish: those detours filled waits for later connections. `plan.py` runs it on every planned local route.
+6. **`solver/export.py`** writes viewer rows and an itinerary, then checks the result: walks start where you are, you board after you arrive, times only move forward, and every station is visited.
 
 ## Run it
 

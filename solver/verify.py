@@ -69,7 +69,7 @@ for i, b in enumerate(rows):
     prev_stop = b
 got = stopped | (passed if EXPRESS else set())
 print(f"rules: {'express' if EXPRESS else 'local'}")
-print(f"train hops not in the weekday schedule: {len(bad_hops)}")
+print(f"train hops not in the weekday schedule: {len(bad_hops)}" + (f" e.g. {bad_hops[:3]}" if bad_hops else ""))
 if EXPRESS: print(f"pass-throughs not between their hop's stops: {len(bad_pass)}")
 print(f"stations required {len(served)}, covered {len(served & got)}, missing {sorted(served - got)[:10]}")
 print(f"walks {len(walks)}, longest {max(walks):.0f} m" if walks else "walks 0")
