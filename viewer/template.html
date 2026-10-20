@@ -236,7 +236,11 @@ const $ = id => document.getElementById(id);
 const routeById = Object.fromEntries(D.routes.map(r => [r.id, r]));
 const stById = Object.fromEntries(D.stations.map(s => [s.id, s]));
 const SIR = new Set(D.stations.filter(s => s.r.every(r => r === 'SI')).map(s => s.id));
-const TOTAL = D.stations.length - SIR.size;
+// GTFS splits three single stations by line; the official 472 count (solver/stations472.py) has one stop each
+const MERGE = {R09: '718', D13: 'A12', D20: 'A32'};
+const PARTNER = Object.fromEntries(Object.entries(MERGE).flatMap(([a, b]) => [[a, b], [b, a]]));
+const canon = id => MERGE[id] || id;
+const TOTAL = new Set(D.stations.filter(s => !SIR.has(s.id)).map(s => canon(s.id))).size;
 const DARK_TEXT = new Set(['N','Q','R','W']);
 
 const f = D.feed;
@@ -343,11 +347,13 @@ function build(name, rawRows){
     const cum=[0]; for (let j=1;j<path.length;j++) cum.push(cum[j-1] + Math.hypot(path[j][0]-path[j-1][0], path[j][1]-path[j-1][1]));
     segs.push({a, b, route:b.route, walk:!b.route && a.st!==b.st, path, cum, len:cum[cum.length-1]});
   }
-  const first = new Map(), firstRow = new Map(); for (const r of rows) if (!first.has(r.st.id)){ first.set(r.st.id, r.t); firstRow.set(r.st.id, r); }
+  const first = new Map(), firstRow = new Map(), firstC = new Map();
+  for (const r of rows) for (const id of [r.st.id, PARTNER[r.st.id]]) if (id && !first.has(id)){ first.set(id, r.t); firstRow.set(id, r); }
   for (const id of SIR) first.delete(id);
+  for (const [id, t] of first) if (!firstC.has(canon(id)) || t < firstC.get(canon(id))) firstC.set(canon(id), t);
   const t0 = rows[0].t, t1 = rows[rows.length-1].t;
-  const curve = [...first.values()].sort((x,y)=>x-y).map((t,i)=>[t-t0, i+1]);
-  return {name, rows, segs, first, firstRow, t0, t1, curve};
+  const curve = [...firstC.values()].sort((x,y)=>x-y).map((t,i)=>[t-t0, i+1]);
+  return {name, rows, segs, first, firstRow, firstC, t0, t1, curve};
 }
 
 /* ---------- parsing input ---------- */
@@ -366,7 +372,7 @@ function load(name, rows, wholeMap, sol){
   try {
     R = build(name, rows); now = R.t1; playing = false;
     $('err').hidden = true; $('rname').textContent = name;
-    $('okmsg').hidden = false; $('okmsg').textContent = `Loaded ${R.rows.length} rows, ${R.first.size} distinct stations, ${dur(R.t1-R.t0)} long.`;
+    $('okmsg').hidden = false; $('okmsg').textContent = `Loaded ${R.rows.length} rows, ${R.firstC.size} distinct stations, ${dur(R.t1-R.t0)} long.`;
     drawProg(); renderSol(sol); if (wholeMap) fit(); else fitRoute(); update();
   } catch(e){ $('err').hidden = false; $('err').textContent = e.message; $('okmsg').hidden = true; }
 }
@@ -450,7 +456,7 @@ function tick(ts){ if (!playing) return; now += (ts-lastTs)/1000 * +$('speed').v
 function update(){
   $('play').textContent = playing ? 'Pause' : (R && now>=R.t1 ? 'Replay' : 'Play');
   if (!R) return;
-  let v=0; for (const t of R.first.values()) if (t<=now) v++;
+  let v=0; for (const t of R.firstC.values()) if (t<=now) v++;
   const need = TOTAL - (onCurrent() && loadedRun === curRun() ? DROPPED.size : 0);   // stations without service aren't required
   $('sVisited').textContent = v; $('sTotal').textContent = `of ${need} stations` + (need < TOTAL ? ' in service' : '');
   $('sLeft').textContent = Math.max(0, need - v); $('sElapsed').textContent = dur(now - R.t0);
