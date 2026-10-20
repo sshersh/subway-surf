@@ -340,5 +340,23 @@
   "walks": 29,
   "passed_only": 0,
   "file": "202610191446-local.json"
+ },
+ {
+  "id": "202610192356-local",
+  "created": "2026-10-19T23:56:36-07:00",
+  "rules": "local",
+  "label": "Multi-start search, Guinness rules, 472 stations, walks up to 5 km",
+  "method": "1120 short anneals on 20 GitHub Actions runners (time-aware + line-aware seeds, refinement of the top 20); official 472-station count; walk/run links up to 5 km (longest used 2.3 km); no safety buffer",
+  "transfers": "MTA min_transfer_time (60 s default)",
+  "start_fixed": "",
+  "total_s": 84780,
+  "start": "07:03:00",
+  "end": "30:36:00",
+  "start_station": "Far Rockaway-Mott Av",
+  "end_station": "Pelham Bay Park",
+  "rides": 58,
+  "walks": 20,
+  "passed_only": 0,
+  "file": "202610192356-local.json"
  }
 ]

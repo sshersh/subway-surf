@@ -71,8 +71,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: plan
-          key: plan-v6-${{ steps.changes.outputs.hash }}
+          key: plan-v7-${{ steps.changes.outputs.hash }}
           restore-keys: |
+            plan-v7-
             plan-v6-
             plan-v5-
             plan-v4-
@@ -92,7 +93,7 @@ jobs:
         continue-on-error: true
         run: |
           python3 solver/plan.py --gtfs gtfs/gtfs_json/subway --changes changes.json --out plan_new \
-            --prev plan --local-transfers mta --minutes "$PLAN_MINUTES" --procs "$PLAN_PROCS" --iters "$PLAN_ITERS" ${{ inputs.force && '--resolve' || '' }}
+            --prev plan --local-transfers mta --local-walk-max 2500 --minutes "$PLAN_MINUTES" --procs "$PLAN_PROCS" --iters "$PLAN_ITERS" ${{ inputs.force && '--resolve' || '' }}
           rm -rf plan && mv plan_new plan
 
       - name: Save the plan
@@ -100,7 +101,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: plan
-          key: plan-v6-${{ steps.changes.outputs.hash }}
+          key: plan-v7-${{ steps.changes.outputs.hash }}
         continue-on-error: true   # a forced plan can't overwrite an existing cache entry
 
       - name: Fall back to the saved routes

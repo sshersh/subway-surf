@@ -193,6 +193,8 @@ def main():
     ap.add_argument("--seeds", nargs="*", default=[], help="extra seed solutions (.npy: [t0, order...] on this station list)")
     ap.add_argument("--local-transfers", choices=["realistic", "mta"], default="realistic",
                     help="transfer times for the local (Guinness) rules: mta = MTA min_transfer_time, the assumption the saved best local route was solved under")
+    ap.add_argument("--local-walk-max", type=float, default=None,
+                    help="straight-line cap (m) for walk/run links under local rules (model.py --walk-max); default: realistic.WALK_MAX")
     a = ap.parse_args()
     global ROBUST_ON
     ROBUST_ON = a.robust
@@ -204,9 +206,10 @@ def main():
     d = f"{work}/model"
     meta = build(d, gtfs, changes if ch["changes"] else None, "express" in a.rules)
     dirs = {"express": d, "local": d}
-    if "local" in a.rules and a.local_transfers == "mta":   # local rules on their own timetable model (same trips and stations)
+    if "local" in a.rules and (a.local_transfers == "mta" or a.local_walk_max):   # local rules on their own timetable model (same trips and stations)
         dirs["local"] = f"{work}/model_local"
-        build(dirs["local"], gtfs, changes if ch["changes"] else None, False, ["--mta-transfers"])
+        build(dirs["local"], gtfs, changes if ch["changes"] else None, False,
+              (["--mta-transfers"] if a.local_transfers == "mta" else []) + (["--walk-max", str(a.local_walk_max)] if a.local_walk_max else []))
     names = dict(zip(meta["stations"], meta["names"]))
     base_names = {s["stop_id"]: s["stop_name"] for s in json.load(open(f"{gtfs}/stops.json"))}
     nm = lambda s: names.get(s) or base_names.get(s) or base_names.get(s[:-1], s)
