@@ -72,3 +72,14 @@ Bands: early 4-6, AM 6-10, midday 10-15, PM 15-19, evening 19-23, night 23-4. Ce
 | 60 | 207 St -> Pelham Pkwy | Bx12-SBS (sbs) | 49/229 | 23.65 | - | 4.3 / +28.6 | 5.8 / +25 | 5 / +17.1 | 21.2 / +25.8 | - | 17.12 | 0.567 | 9.716 |
 
 300 links are in links.json (best route per directed station pair; each has its trips with trip ids, so the planner needs no bus feed). Rows beyond 60 are in the JSON only.
+
+## Result of planning with these links (Actions run 39412768688, `results/multistart472_buses/`)
+
+All 300 links in the model (`--bus-top 300`, 79,704 bus trips over 2 days), walk/run links to 2.5 km, MTA transfers, 472 stations, 20 runners, 1120 starts, seeds as in multistart472 plus `best_solution.npy`.
+Best: **23:33** (07:03 Far Rockaway-Mott Av to 06:36 Pelham Bay Park), the same as without buses; the tidied best route uses **0 buses** and passes verify.py.
+Percentiles over all starts: best 23:33, 10th 24:52, median 28:05 (the no-bus 5 km-walk search: 23:33 / 24:48 / 28:26).
+Replaying the 23:33 order in the bus model also picks no bus: no leg of that route arrives earlier by bus.
+
+Why: the 23:33 route's long walks have no bus that beats them. Woodlawn <-> Norwood-205 St (Bx16/Bx34) and 155 St <-> Harlem-148 St (M2/M10) have bus segments, but wait + ride + two walks to the stops is slower than the run link (2.3 km at 2.5 m/s). Wakefield-241 St -> Eastchester-Dyre Av, Canarsie -> Junius St and Flatbush Av -> Avenue H have no bus stop pair within 400 m on one trip. The big savings in the table are against slow subway paths (e.g. Pelham Bay Park -> Flushing), but those pairs are not legs the route needs: the route never goes there for lack of a direct train.
+
+Limits: bus arrival time adds the station's change time on top of the 60 s exit/entry walk (about 2 min too conservative); no real-time data, so a bus is assumed to run exactly on schedule; the link list keeps one stop pair per route and station pair (top 300 by score).
