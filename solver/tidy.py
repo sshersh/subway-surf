@@ -44,7 +44,11 @@ fp_ptr, fp_to, fp_t = m["fp_ptr"], m["fp_to"], m["fp_t"]
 if EXPRESS:
     P = np.load("model_pass.npz"); pptr, plst = P["ptr"], P["lst"]
 base = lambda r: r[:-1] if len(r) == 2 and r.endswith("X") else r
-line_of = lambda c: base(trip_route[int(trip[c]) % T])
+BUS0 = meta.get("bus0", 1 << 40)
+if EXPRESS and BUS0 < (1 << 40): raise SystemExit("bus links are supported for local rules only")
+route_of = lambda tr: trip_route[int(tr) % T] if int(tr) < BUS0 else meta["bus_route"][int(tr) - BUS0]
+line_of = lambda c: base(route_of(trip[c]))
+from busrows import bus_leg
 
 bys = collections.defaultdict(list)
 for c in np.argsort(dep_t, kind="stable"):
@@ -61,6 +65,7 @@ GEN = [0]
 
 
 def cover(c, seen):
+    if nxt[c] == -2: return    # a bus leg visits nothing
     seen.add(int(dep_s[c])); seen.add(int(arr_s[c]))
     if EXPRESS:
         seen.update(int(x) for x in plst[pptr[c]:pptr[c + 1]])
@@ -89,7 +94,7 @@ def ride(line, b, e, t, cur_trip, here):
 def path(here, t, cur_trip, e):
     """fastest way (any trains, walks) from here to arriving at e by train"""
     GEN[0] += 1
-    a, k = _leg(here, t, cur_trip, e, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t, *ws, GEN[0], ob, oe, ow)
+    a, k = _leg(here, t, cur_trip, e, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t, *ws, GEN[0], ob, oe, ow)
     if a >= INF: return None
     rides_ = []
     for q in range(k - 1, -1, -1):
@@ -160,14 +165,18 @@ while improved:
 # write the tidied route in export.py's format
 hms = lambda s: f"{s//3600:02d}:{s%3600//60:02d}:{s%60:02d}"
 s0 = out[0][3]   # the route starts with the first train (as export.py counts it), not the planner's t0
-rows = [{"stop_id": st[out[0][1]], "time": hms(s0), "route": ""}]; seen = {out[0][1]}; itin = []; prev_e = out[0][1]; prev_a = s0; walk_s = 0
+rows = [{"stop_id": st[out[0][1]], "time": hms(s0), "route": ""}]; seen = {out[0][1]}; itin = []; prev_e = out[0][1]; prev_a = s0; walk_s = 0; bus_s = 0
 for _, b, e, d, a, ch in out:
-    line = trip_route[int(trip[ch[0]]) % T]   # the trip's own route id (7X, 6X ...), as the schedule has it
+    line = route_of(trip[ch[0]])   # the trip's own route id (7X, 6X ...), as the schedule has it
     if b != prev_e:
         w = foot.get((prev_e, b), 0); walk_s += w
         itin.append({"kind": "walk", "from": names[prev_e], "to": names[b], "t0": hms(prev_a), "t1": hms(prev_a + w), "min": round(w / 60)})
         rows.append({"stop_id": st[b], "time": hms(prev_a + w), "route": ""})
     new0 = len(seen)
+    if nxt[ch[0]] == -2:   # bus leg (busrows.py)
+        row, it = bus_leg(meta, hms, names, st, trip[ch[0]], dep_t[ch[0]], arr_t[ch[0]], b, e)
+        rows.append(row); itin.append(it); bus_s += int(arr_t[ch[0]] - dep_t[ch[0]]); prev_e = e; prev_a = int(arr_t[ch[0]])
+        continue
     for c in ch:
         if EXPRESS:
             for x in plst[pptr[c]:pptr[c + 1]]:
@@ -177,10 +186,10 @@ for _, b, e, d, a, ch in out:
     prev_e = e; prev_a = a
 stats = dict(route.get("stats", {}))
 stats.update({"total_s": best - s0, "start": hms(s0), "end": hms(best), "rides": len(out), "walks": sum(1 for x in itin if x["kind"] == "walk"),
-              "walk_s": walk_s, "start_station": names[out[0][1]], "end_station": names[out[-1][2]], "tidied": True})
+              "walk_s": walk_s, "bus_s": bus_s, "buses": sum(1 for x in itin if x["kind"] == "bus"), "start_station": names[out[0][1]], "end_station": names[out[-1][2]], "tidied": True})
 order = list(dict.fromkeys([out[0][1]] + [e for _, _, e, *_ in out])); order += [i for i in range(n) if i not in set(order)]
 json.dump({"rows": rows, "itin": itin, "stats": stats, "order": [st[i] for i in order], "t0": t0,
-           "rides": [[trip_route[int(trip[ch[0]]) % T], st[b], st[e], d, a] for ln, b, e, d, a, ch in out]}, open(OUT, "w"))
+           "rides": [[route_of(trip[ch[0]]), st[b], st[e], d, a] for ln, b, e, d, a, ch in out]}, open(OUT, "w"))
 if ORDER_OUT: np.save(ORDER_OUT, np.array([t0] + order, dtype=np.int64))
 print(f"done: {(first[0] - first[1][0][3])/3600:.3f} -> {(best - out[0][3])/3600:.3f} h ({(first[0] - best)/60:.1f} min saved), "
       f"boardings {k0[1]} -> {bk[1]}, walking {k0[2]//60} -> {bk[2]//60} min", flush=True)

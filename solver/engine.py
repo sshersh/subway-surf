@@ -18,7 +18,7 @@ def load(path):
 
 
 @njit(cache=True)
-def _leg(src, t, cur_trip, target, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
+def _leg(src, t, cur_trip, target, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t,
          ar, ready, kind, jin, jout, jfp, stamp, tb, tbstamp, gen, out_b, out_e, out_w):
     """Earliest train arrival at target. Fills out_b/out_e (ride board/exit conn) and
     out_w (walk origin stop, or -1) in reverse order. Returns (arrival, nlegs)."""
@@ -51,7 +51,7 @@ def _leg(src, t, cur_trip, target, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr
                 tbstamp[tr] = gen; tb[tr] = c; boarded = True
         if boarded:
             a = arr_t[c]; s2 = arr_s[c]
-            if s2 == target and a < best_t:
+            if s2 == target and a < best_t and nxt[c] != -2:   # a bus arrival is not a visit
                 best_t = a; best_in = tb[tr]; best_out = c
             if stamp[s2] != gen or a < ar[s2]:
                 stamp[s2] = gen; ar[s2] = a; ready[s2] = a + chg[s2]; kind[s2] = 1
@@ -110,7 +110,7 @@ def replay(order, t0, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to,
             pos += 1
             continue
         gen += 1
-        a, m = _leg(cur, t, cur_trip, tgt, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
+        a, m = _leg(cur, t, cur_trip, tgt, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t,
                     ar, ready, kind, jin, jout, jfp, stamp, tb, tbstamp, gen, ob, oe, ow)
         if a >= INF:
             return INF, first_dep, nvis, nrec
@@ -118,30 +118,7 @@ def replay(order, t0, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to,
             c = ob[q]
             if first_dep < 0:
                 first_dep = dep_t[c]
-            if not visited[dep_s[c]]:
-                visited[dep_s[c]] = True; nvis += 1
-            while True:
-                s2 = arr_s[c]
-                if not visited[s2]:
-                    visited[s2] = True; nvis += 1
-                if c == oe[q]:
-                    break
-                c = nxt[c]
-            if record:
-                rec_b[nrec] = ob[q]; rec_e[nrec] = oe[q]; rec_w[nrec] = ow[q]; nrec += 1
-        cur_trip = trip[oe[0]]
-        cur = tgt; t = a
-        pos += 1
-    # any station never targeted after being skipped (only the start can be): try to finish it
-    for s in range(n):
-        if not visited[s]:
-            gen += 1
-            a, m = _leg(cur, t, cur_trip, s, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
-                        ar, ready, kind, jin, jout, jfp, stamp, tb, tbstamp, gen, ob, oe, ow)
-            if a >= INF:
-                return INF, first_dep, nvis, nrec
-            for q in range(m - 1, -1, -1):
-                c = ob[q]
+            if nxt[c] != -2:   # a bus leg visits nothing
                 if not visited[dep_s[c]]:
                     visited[dep_s[c]] = True; nvis += 1
                 while True:
@@ -151,6 +128,31 @@ def replay(order, t0, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to,
                     if c == oe[q]:
                         break
                     c = nxt[c]
+            if record:
+                rec_b[nrec] = ob[q]; rec_e[nrec] = oe[q]; rec_w[nrec] = ow[q]; nrec += 1
+        cur_trip = trip[oe[0]]
+        cur = tgt; t = a
+        pos += 1
+    # any station never targeted after being skipped (only the start can be): try to finish it
+    for s in range(n):
+        if not visited[s]:
+            gen += 1
+            a, m = _leg(cur, t, cur_trip, s, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t,
+                        ar, ready, kind, jin, jout, jfp, stamp, tb, tbstamp, gen, ob, oe, ow)
+            if a >= INF:
+                return INF, first_dep, nvis, nrec
+            for q in range(m - 1, -1, -1):
+                c = ob[q]
+                if nxt[c] != -2:
+                    if not visited[dep_s[c]]:
+                        visited[dep_s[c]] = True; nvis += 1
+                    while True:
+                        s2 = arr_s[c]
+                        if not visited[s2]:
+                            visited[s2] = True; nvis += 1
+                        if c == oe[q]:
+                            break
+                        c = nxt[c]
                 if record:
                     rec_b[nrec] = ob[q]; rec_e[nrec] = oe[q]; rec_w[nrec] = ow[q]; nrec += 1
             cur_trip = trip[oe[0]]; cur = s; t = a

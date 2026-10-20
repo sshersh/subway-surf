@@ -114,11 +114,13 @@ def _repair(d, order, t0, tries):
             tgt = order[p]
             if vis[tgt] or tgt == cur: at.append(t); continue
             gen += 1
-            a, k = _leg(cur, t, ct, tgt, m["dep_t"], m["arr_t"], m["dep_s"], m["arr_s"], m["trip"], m["chg"],
+            a, k = _leg(cur, t, ct, tgt, m["dep_t"], m["arr_t"], m["dep_s"], m["arr_s"], m["trip"], m["nxt"], m["chg"],
                         m["fp_ptr"], m["fp_to"], m["fp_t"], *ws, gen, ob, oe, ow)
             if a >= INF: bad = p; break
             for q in range(k - 1, -1, -1):
-                c = int(ob[q]); vis[m["dep_s"][c]] = True
+                c = int(ob[q])
+                if m["nxt"][c] == -2: continue   # a bus leg visits nothing
+                vis[m["dep_s"][c]] = True
                 while True:
                     vis[m["arr_s"][c]] = True
                     if c == oe[q]: break

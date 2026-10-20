@@ -11,6 +11,9 @@ Two consecutive service days are included so a run can pass midnight.
 Transfer and street times come from realistic.py (curated per-complex times, running beyond 300 m);
 --legacy restores the original 1-minute changes and walking-only links.
 
+--bus-links links.json [--bus-top N] adds scheduled bus connections between stations (busrank.py's output;
+local rules only). A bus trip is one connection A -> B whose times include the walk to and from the bus
+stop; its nxt is -2, which makes the engines treat it as a way to get from A to B that visits nothing.
 With --changes (from status/alerts.py), skipped and cut stops are applied to each service day
 (see service.py). Stations no train stops at are then left out, so the route doesn't need them;
 meta["dropped"] lists them.
@@ -99,6 +102,22 @@ for (day, t, v), ix in zip(runs, run_ix):
     off = day * 86400
     for a, b in zip(v, v[1:]):
         conns.append((a[3] + off, b[2] + off, sid[a[1]], sid[b[1]], ix))
+BUS0 = max(run_ix) + 1 if run_ix else 0     # trip numbers from here on are bus trips
+bus_route, bus_trip_id, bus_info = [], [], []
+if "--bus-links" in sys.argv:
+    bl = json.load(open(sys.argv[sys.argv.index("--bus-links") + 1]))
+    top = int(sys.argv[sys.argv.index("--bus-top") + 1]) if "--bus-top" in sys.argv else len(bl["links"])
+    sid_ = {s["stop_id"]: i for i, s in enumerate(stations)}
+    for L_ in sorted(bl["links"], key=lambda l: l["rank"])[:top]:
+        if L_["A"] not in sid_ or L_["B"] not in sid_: continue
+        a_, b_ = sid_[L_["A"]], sid_[L_["B"]]
+        bus_info.append({"rank": L_["rank"], "route": L_["short"], "A": L_["A"], "B": L_["B"], "stopA": L_["stopA"], "stopB": L_["stopB"],
+                         "walk_in": L_["walk_in_s"], "walk_out": L_["walk_out_s"], "ntrips": len(L_["trips"])})
+        for day in (0, 1):
+            for tid_, d_, r_ in L_["trips"]:
+                conns.append((d_ - L_["walk_in_s"] + day * 86400, r_ + L_["walk_out_s"] + day * 86400, a_, b_, BUS0 + len(bus_route)))
+                bus_route.append(L_["short"]); bus_trip_id.append([tid_, day, len(bus_info) - 1])
+    print("bus links", len(bus_info), "bus trips", len(bus_route), flush=True)
 conns.sort()
 C = np.array(conns, dtype=np.int64)
 dep_t, arr_t, dep_s, arr_s, trip = (C[:, i].copy() for i in range(5))
@@ -110,6 +129,8 @@ for k in range(len(order) - 1):
     i, j = order[k], order[k + 1]
     if trip[i] == trip[j]:
         nxt[i] = j
+
+nxt[trip >= BUS0] = -2      # bus connection: rides visit nothing (engines test nxt == -2)
 
 # change time at each station (seconds to get off one train and be ready for another)
 lat0 = {s["stop_id"]: (float(s["stop_lat"]), float(s["stop_lon"])) for s in stops}
@@ -183,7 +204,8 @@ for i in range(N):
 base = lambda r: r[:-1] if len(r) == 2 and r.endswith("X") else r
 rcode = {}
 for r in route_of_trip: rcode.setdefault(base(r), len(rcode))
-rbase = np.array([rcode[base(route_of_trip[int(x) % T])] for x in trip], dtype=np.int64)
+for r in bus_route: rcode.setdefault("bus:" + r, len(rcode))
+rbase = np.array([rcode[base(route_of_trip[int(x) % T])] if x < BUS0 else rcode["bus:" + bus_route[int(x) - BUS0]] for x in trip], dtype=np.int64)
 key = (dep_s * N + arr_s) * 65536 + rbase
 o = np.lexsort((dep_t, key))
 hw = np.full(len(C), 3 * 3600, dtype=np.int64)
@@ -196,7 +218,7 @@ np.savez(OUT + ".npz", hw=hw, buf=buf, dep_t=dep_t, arr_t=arr_t, dep_s=dep_s, ar
          chg=chg, fp_ptr=fp_ptr, fp_to=np.array(fp_to, dtype=np.int64), fp_t=np.array(fp_t, dtype=np.int64),
          lat=lat, lon=lon)
 json.dump({"stations": [s["stop_id"] for s in stations], "names": [s["stop_name"] for s in stations],
-           "trip_route": route_of_trip, "trip_ids": trip_ids, "T": T, "dropped": dropped,
+           "trip_route": route_of_trip, "trip_ids": trip_ids, "T": T, "bus0": BUS0, "bus_route": bus_route, "bus_trip": bus_trip_id, "bus_links": bus_info, "dropped": dropped,
            "changes": CHANGES.raw.get("hash") if CHANGES else None,
            "params": dict(WALK_SPEED=WALK_SPEED, DETOUR=DETOUR, WALK_MAX=WALK_MAX, WALK_OVERHEAD=WALK_OVERHEAD, DEFAULT_CHANGE=DEFAULT_CHANGE,
                          LEGACY=LEGACY, MTA_TRANSFERS=MTA_TR, RUN_SPEED=None if LEGACY else R.RUN_SPEED, RUN_FROM=None if LEGACY else R.RUN_FROM)},

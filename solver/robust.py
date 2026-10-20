@@ -46,7 +46,7 @@ def _loss(slack, c, lt, sl, adj, cap):
 
 
 @njit(cache=True)
-def _legr(src, t, cur_trip, target, express, pp_ptr, pp_lst, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
+def _legr(src, t, cur_trip, target, express, pp_ptr, pp_lst, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t,
           buf, hw, cls, lt, sl, ladj, rp, ar, ready, kind, jin, jout, jfp, stamp, tb, tbstamp, gen, out_b, out_e, out_w, pen):
     """Earliest arrival at target (stopping there, or with express passing it) under the hard-slack
     rule. Fills out_b/out_e/out_w in reverse order; pen[0] = expected miss cost (s) of this leg's
@@ -86,7 +86,7 @@ def _legr(src, t, cur_trip, target, express, pp_ptr, pp_lst, dep_t, arr_t, dep_s
         if boarded:
             a = arr_t[c]; s2 = arr_s[c]
             if a < best_t:
-                hit = s2 == target
+                hit = s2 == target and nxt[c] != -2   # a bus arrival is not a visit
                 if express and not hit:
                     for k in range(pp_ptr[c], pp_ptr[c + 1]):
                         if pp_lst[k] == target:
@@ -185,7 +185,7 @@ def replay_r(order, t0, start_leg, q, express, pp_ptr, pp_lst, dep_t, arr_t, dep
             cp_pos[leg] = pos; cp_cur[leg] = cur; cp_t[leg] = t; cp_trip[leg] = cur_trip
             cp_first[leg] = first_dep; cp_nvis[leg] = nvis; cp_vis[leg, :] = visited; cp_pen[leg] = pen
         gen += 1
-        a, m = _legr(cur, t, cur_trip, tgt, express, pp_ptr, pp_lst, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
+        a, m = _legr(cur, t, cur_trip, tgt, express, pp_ptr, pp_lst, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t,
                      buf, hw, cls, lt, sl, ladj, rp, ws_ar, ws_ready, ws_kind, ws_jin, ws_jout, ws_jfp, ws_stamp, ws_tb, ws_tbstamp, gen,
                      ob, oe, ow, pen1)
         if a >= INF:
@@ -197,19 +197,20 @@ def replay_r(order, t0, start_leg, q, express, pp_ptr, pp_lst, dep_t, arr_t, dep
             c = ob[qq]
             if first_dep < 0:
                 first_dep = dep_t[c]
-            if not visited[dep_s[c]]:
-                visited[dep_s[c]] = True; nvis += 1
-            while True:
-                if express:
-                    for k in range(pp_ptr[c], pp_ptr[c + 1]):
-                        if not visited[pp_lst[k]]:
-                            visited[pp_lst[k]] = True; nvis += 1
-                s2 = arr_s[c]
-                if not visited[s2]:
-                    visited[s2] = True; nvis += 1
-                if c == oe[qq]:
-                    break
-                c = nxt[c]
+            if nxt[c] != -2:   # a bus leg visits nothing
+                if not visited[dep_s[c]]:
+                    visited[dep_s[c]] = True; nvis += 1
+                while True:
+                    if express:
+                        for k in range(pp_ptr[c], pp_ptr[c + 1]):
+                            if not visited[pp_lst[k]]:
+                                visited[pp_lst[k]] = True; nvis += 1
+                    s2 = arr_s[c]
+                    if not visited[s2]:
+                        visited[s2] = True; nvis += 1
+                    if c == oe[qq]:
+                        break
+                    c = nxt[c]
         cur_trip = trip[oe[0]]; cur = arr_s[oe[0]]; t = a
         leg += 1
         if pos < n:
@@ -262,7 +263,8 @@ def loss_model(z, meta, path=LOSS_TABLE):
     adj = tab.get("line_adj", {})
     tr = z["trip"]
     radj = {}
-    lines = [base(rt[int(x) % T]) for x in range(int(tr.max()) + 1)]
+    b0 = meta.get("bus0", 1 << 40); br = meta.get("bus_route", [])
+    lines = [base(rt[int(x) % T]) if x < b0 else "bus:" + br[int(x) - b0] for x in range(int(tr.max()) + 1)]
     a0 = np.array([adj.get(f"{l}|0", 0.0) for l in lines]); a1 = np.array([adj.get(f"{l}|1", 0.0) for l in lines])
     ladj = np.where(night == 1, a1[tr], a0[tr])
     return cls.astype(np.int64), lt, sl, ladj.astype(np.float64)
@@ -373,7 +375,7 @@ def record(F, order, t0, start_state=None, partial=False):
         else:
             tgt = int(order[pos])
         gen += 1
-        a, mm = _legr(cur, t, cur_trip, tgt, F.express, pp_ptr, pp_lst, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
+        a, mm = _legr(cur, t, cur_trip, tgt, F.express, pp_ptr, pp_lst, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t,
                       buf, hw, cls, lt, sl, ladj, rp, *F.ws, gen, ob, oe, ow, pen1)
         if a >= INF:
             F.gen[0] = gen
@@ -385,12 +387,13 @@ def record(F, order, t0, start_state=None, partial=False):
             slack = int(dep_t[c] - ready[s]); cost = min(max(int(hw[c]), int(hw[e])), int(R.MISS_CAP))
             P = float(_loss(slack - (rp[2] if kind[s] == 2 else 0.0), cls[c], lt, sl, ladj[c], rp[1]))   # expected loss (s)
             if first < 0: first = int(dep_t[c])
-            visited[dep_s[c]] = True
-            while True:
-                if F.express: visited[pp_lst[pp_ptr[c]:pp_ptr[c + 1]]] = True
-                visited[arr_s[c]] = True
-                if c == e: break
-                c = int(nxt[c])
+            if nxt[c] != -2:   # a bus leg visits nothing
+                visited[dep_s[c]] = True
+                while True:
+                    if F.express: visited[pp_lst[pp_ptr[c]:pp_ptr[c + 1]]] = True
+                    visited[arr_s[c]] = True
+                    if c == e: break
+                    c = int(nxt[c])
             legs.append((int(ob[q]), e, int(ow[q]), None if exempt else slack, None if exempt else cost, 0.0 if exempt else P))
         cur_trip = int(trip[oe[0]]); cur = int(arr_s[oe[0]]); t = int(a)
         if pos < n: pos += 1

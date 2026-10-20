@@ -42,7 +42,7 @@ def replay_cp(order, t0, start_leg, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, 
             cp_pos[leg] = pos; cp_cur[leg] = cur; cp_t[leg] = t; cp_trip[leg] = cur_trip
             cp_first[leg] = first_dep; cp_nvis[leg] = nvis; cp_vis[leg, :] = visited
         gen += 1
-        a, m = _leg(cur, t, cur_trip, tgt, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
+        a, m = _leg(cur, t, cur_trip, tgt, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t,
                     ws_ar, ws_ready, ws_kind, ws_jin, ws_jout, ws_jfp, ws_stamp, ws_tb, ws_tbstamp, gen, ob, oe, ow)
         if a >= INF:
             gen_box[0] = gen; nlegs_box[0] = leg
@@ -51,15 +51,16 @@ def replay_cp(order, t0, start_leg, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, 
             c = ob[q]
             if first_dep < 0:
                 first_dep = dep_t[c]
-            if not visited[dep_s[c]]:
-                visited[dep_s[c]] = True; nvis += 1
-            while True:
-                s2 = arr_s[c]
-                if not visited[s2]:
-                    visited[s2] = True; nvis += 1
-                if c == oe[q]:
-                    break
-                c = nxt[c]
+            if nxt[c] != -2:   # a bus leg visits nothing
+                if not visited[dep_s[c]]:
+                    visited[dep_s[c]] = True; nvis += 1
+                while True:
+                    s2 = arr_s[c]
+                    if not visited[s2]:
+                        visited[s2] = True; nvis += 1
+                    if c == oe[q]:
+                        break
+                    c = nxt[c]
         cur_trip = trip[oe[0]]; cur = tgt; t = a
         leg += 1
         if pos < n:
@@ -134,7 +135,7 @@ def replay_rj(order, t0, start_leg, q, express, pp_ptr, pp_lst, dep_t, arr_t, de
             a, m = _legx(cur, t, cur_trip, tgt, pp_ptr, pp_lst, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
                          ws_ar, ws_ready, ws_kind, ws_jin, ws_jout, ws_jfp, ws_stamp, ws_tb, ws_tbstamp, gen, ob, oe, ow)
         else:
-            a, m = _leg(cur, t, cur_trip, tgt, dep_t, arr_t, dep_s, arr_s, trip, chg, fp_ptr, fp_to, fp_t,
+            a, m = _leg(cur, t, cur_trip, tgt, dep_t, arr_t, dep_s, arr_s, trip, nxt, chg, fp_ptr, fp_to, fp_t,
                         ws_ar, ws_ready, ws_kind, ws_jin, ws_jout, ws_jfp, ws_stamp, ws_tb, ws_tbstamp, gen, ob, oe, ow)
         if a >= INF:
             gen_box[0] = gen; nlegs_box[0] = leg
@@ -144,19 +145,20 @@ def replay_rj(order, t0, start_leg, q, express, pp_ptr, pp_lst, dep_t, arr_t, de
             c = ob[qq]
             if first_dep < 0:
                 first_dep = dep_t[c]
-            if not visited[dep_s[c]]:
-                visited[dep_s[c]] = True; nvis += 1
-            while True:
-                if express:
-                    for k in range(pp_ptr[c], pp_ptr[c + 1]):
-                        if not visited[pp_lst[k]]:
-                            visited[pp_lst[k]] = True; nvis += 1
-                s2 = arr_s[c]
-                if not visited[s2]:
-                    visited[s2] = True; nvis += 1
-                if c == oe[qq]:
-                    break
-                c = nxt[c]
+            if nxt[c] != -2:
+                if not visited[dep_s[c]]:
+                    visited[dep_s[c]] = True; nvis += 1
+                while True:
+                    if express:
+                        for k in range(pp_ptr[c], pp_ptr[c + 1]):
+                            if not visited[pp_lst[k]]:
+                                visited[pp_lst[k]] = True; nvis += 1
+                    s2 = arr_s[c]
+                    if not visited[s2]:
+                        visited[s2] = True; nvis += 1
+                    if c == oe[qq]:
+                        break
+                    c = nxt[c]
         cur_trip = trip[oe[0]]; cur = arr_s[oe[0]]; t = a
         leg += 1
         if pos < n:

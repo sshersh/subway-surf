@@ -332,7 +332,7 @@ function build(name, rawRows){
     if (!stById[id]) errs.push(`Row ${i+1}: unknown stop_id "${r.stop_id}"`);
     else if (isNaN(t)) errs.push(`Row ${i+1}: can't read time "${r.time}"`);
     else if (route && !routeById[route]) errs.push(`Row ${i+1}: unknown route "${route}"`);
-    else rows.push({st: stById[id], t, route, pass: r.pass === true || r.pass === 1 || r.pass === '1' || r.pass === 'true'});
+    else rows.push({st: stById[id], t, route, bus: r.bus || '', pass: r.pass === true || r.pass === 1 || r.pass === '1' || r.pass === 'true'});
   });
   for (let i=1;i<rows.length;i++) if (rows[i].t < rows[i-1].t) { errs.push(`Times go backwards at ${rows[i].st.n} (${hhmm(rows[i].t)}). Use times past 24:00 for after midnight, e.g. 25:10.`); break; }
   if (rows.length < 2) errs.push('Need at least two rows.');
@@ -341,7 +341,7 @@ function build(name, rawRows){
   for (let i=1;i<rows.length;i++){
     const a=rows[i-1], b=rows[i]; const path = segPath(a.st, b.st, b.route);
     const cum=[0]; for (let j=1;j<path.length;j++) cum.push(cum[j-1] + Math.hypot(path[j][0]-path[j-1][0], path[j][1]-path[j-1][1]));
-    segs.push({a, b, route:b.route, walk:!b.route && a.st!==b.st, path, cum, len:cum[cum.length-1]});
+    segs.push({a, b, route:b.route, bus:b.bus, walk:!b.route && a.st!==b.st, path, cum, len:cum[cum.length-1]});
   }
   const first = new Map(), firstRow = new Map(); for (const r of rows) if (!first.has(r.st.id)){ first.set(r.st.id, r.t); firstRow.set(r.st.id, r); }
   for (const id of SIR) first.delete(id);
@@ -423,7 +423,7 @@ function renderSol(sol){
   ].map(([a,b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
   $('itlabel').textContent = `Itinerary · ${sol.itin.length} legs`;
   ITIN = sol.itin.map(L => ({...L, s0: secs(L.t0)}));
-  $('itin').innerHTML = ITIN.map((L,i) => `<li data-i="${i}"><span class="tm">${hhmm(L.s0)}</span>${L.kind==='walk' ? '<span class="walkic" aria-label="Walk">W</span>' : bul(L.route)}<span class="tx">${L.kind==='walk' ? `Walk to ${L.to}<small>${L.min} min from ${L.from}</small>` : `${L.from} → ${L.to}<small>${L.stops} stop${L.stops===1?'':'s'}, arrive ${hhmm(secs(L.t1))}</small>`}</span><span class="nw">${L.kind==='ride' && L.new ? '+'+L.new : ''}</span></li>`).join('');
+  $('itin').innerHTML = ITIN.map((L,i) => `<li data-i="${i}"><span class="tm">${hhmm(L.s0)}</span>${L.kind==='walk' ? '<span class="walkic" aria-label="Walk">W</span>' : L.kind==='bus' ? `<span class="walkic" title="Bus ${L.route}" aria-label="Bus">${L.route}</span>` : bul(L.route)}<span class="tx">${L.kind==='walk' ? `Walk to ${L.to}<small>${L.min} min from ${L.from}</small>` : L.kind==='bus' ? `Bus ${L.route} to ${L.to}<small>${L.min} min door to door from ${L.from}, bus leaves ${hhmm(secs(L.bus_dep))}; no station credit</small>` : `${L.from} → ${L.to}<small>${L.stops} stop${L.stops===1?'':'s'}, arrive ${hhmm(secs(L.t1))}</small>`}</span><span class="nw">${L.kind==='ride' && L.new ? '+'+L.new : ''}</span></li>`).join('');
 }
 $('itin').addEventListener('click', e => { const li = e.target.closest('li'); if (!li || !R) return; now = ITIN[+li.dataset.i].s0; playing = false; update(); });
 function markLeg(){
@@ -456,7 +456,7 @@ function update(){
   $('sLeft').textContent = Math.max(0, need - v); $('sElapsed').textContent = dur(now - R.t0);
   $('pbar').style.width = Math.min(100, v/need*100)+'%';
   $('clock').textContent = hhmm(now);
-  const s = curSeg(); $('leg').textContent = !s ? '' : now>=R.t1 ? 'Finished' : s.walk ? `Walking to ${s.b.st.n}` : s.a.st===s.b.st ? `Waiting at ${s.a.st.n}` : `${s.route} train to ${s.b.st.n}`;
+  const s = curSeg(); $('leg').textContent = !s ? '' : now>=R.t1 ? 'Finished' : s.bus ? `Bus ${s.bus} to ${s.b.st.n}` : s.walk ? `Walking to ${s.b.st.n}` : s.a.st===s.b.st ? `Waiting at ${s.a.st.n}` : `${s.route} train to ${s.b.st.n}`;
   $('scrub').value = Math.round((now-R.t0)/(R.t1-R.t0||1)*1000);
   const cur = $('progCur'); if (cur){ const x = PX(now-R.t0); cur.setAttribute('x1',x); cur.setAttribute('x2',x); }
   draw(); markLeg(); if (selected) showStation(selected);

@@ -41,8 +41,13 @@ if END_AT >= 0:   # add the closing ride to the finish station; the clock starts
     end_arr, extra = Ends(END_AT, EXPRESS).final_legs(order, t0)
     legs = list(legs) + extra
 st = meta["stations"]; names = meta["names"]; troute = meta["trip_route"]; T = meta["T"]
+from busrows import bus_leg
 tids = meta.get("trip_ids") or []
+BUS0 = meta.get("bus0", 1 << 40)
+if BUS0 < (1 << 40) and (EXPRESS or sol.ndim == 2): raise SystemExit("bus links are supported for local rules (robust/engine replay) only")
+route_of = lambda tr: troute[int(tr) % T] if int(tr) < BUS0 else meta["bus_route"][int(tr) - BUS0]
 def tdir(tr):   # MTA trip IDs end in ..N or ..S (e.g. 000600_1..S03R): the direction the train runs
+    if int(tr) >= BUS0: return None
     tid = tids[int(tr) % len(tids)] if tids else ""
     return "N" if "..N" in tid else "S" if "..S" in tid else None
 dep_t, arr_t, dep_s, arr_s, trip, nxt = m["dep_t"], m["arr_t"], m["dep_s"], m["arr_s"], m["trip"], m["nxt"]
@@ -58,10 +63,10 @@ t = None; here = None
 if END_AT >= 0:
     t, here = int(t0), int(order[0])
     rows.append({"stop_id": st[here], "time": hms(t), "route": ""})
-walk_s = ride_s = 0
+walk_s = ride_s = bus_s = 0
 for li, (b, e, w) in enumerate(legs):
     b, e, w = int(b), int(e), int(w)
-    r = troute[int(trip[b]) % T]; dr = tdir(trip[b])
+    r = route_of(trip[b]); dr = tdir(trip[b])
     if w >= 0 and here is None:
         w = -1   # a walk before the first train just means starting at the next station
     if w >= 0:
@@ -72,6 +77,14 @@ for li, (b, e, w) in enumerate(legs):
         walk_s += wt; t = ta; here = int(dep_s[b])
     assert here is None or here == int(dep_s[b]), "board where we are"
     assert t is None or dep_t[b] >= t, "board after arriving"
+    if nxt[b] == -2:   # a bus leg: a way from A to B that visits nothing (busrows.py)
+        assert b == e
+        row, it = bus_leg(meta, hms, names, st, trip[b], dep_t[b], arr_t[b], int(dep_s[b]), int(arr_s[b]))
+        if not rows: rows.append({"stop_id": st[int(dep_s[b])], "time": hms(int(dep_t[b])), "route": ""})
+        rows.append(row); itin.append(it)
+        if RISK and RISK[li][0] is not None: it.update({"slack_s": int(RISK[li][0])})
+        bus_s += int(arr_t[b] - dep_t[b]); t = int(arr_t[b]); here = int(arr_s[b])
+        continue
     if not rows or rows[-1]["stop_id"] != st[int(dep_s[b])] or rows[-1]["route"] != r or t != dep_t[b]:
         rows.append({"stop_id": st[int(dep_s[b])], "time": hms(int(dep_t[b])), "route": r if rows else "", **({"dir": dr} if rows and dr else {})})
     visited.setdefault(int(dep_s[b]), int(dep_t[b]))
@@ -113,7 +126,7 @@ rows = rows[:k + 1]
 nride = sum(1 for L in itin if L["kind"] == "ride")
 stats = {"total_s": int(total), "start": hms(int(first)), "end": hms(int(last_new)), "stations": len(visited), "rules": "express" if EXPRESS else "local",
          "passed_only": len(set(r["stop_id"] for r in rows if r.get("pass")) - set(r["stop_id"] for r in rows if not r.get("pass"))),
-         "ride_s": ride_s, "walk_s": walk_s, "wait_s": int(total) - ride_s - walk_s, "fixed_ends": END_AT >= 0, "rides": nride,
+         "ride_s": ride_s, "walk_s": walk_s, "wait_s": int(total) - ride_s - walk_s - bus_s, "bus_s": bus_s, "buses": sum(1 for L in itin if L["kind"] == "bus"), "fixed_ends": END_AT >= 0, "rides": nride,
          "walks": sum(1 for L in itin if L["kind"] == "walk"), "start_station": names[int(order[0])],
          "end_station": names[END_AT] if END_AT >= 0 else names[max(visited, key=visited.get)]}
 if ROBUST:
@@ -123,7 +136,7 @@ if ROBUST:
 # full plan for replays/re-planning: station order (stop ids), start time, and the planned rides
 # (route, board stop, alight stop, planned dep, planned arr) as headways/predictability.py expects
 order_ids = [st[int(i)] for i in order]
-rides_plan = [[troute[int(trip[b]) % T], st[int(dep_s[b])], st[int(arr_s[e])], int(dep_t[b]), int(arr_t[e])] for b, e, w in legs]
+rides_plan = [[route_of(trip[b]), st[int(dep_s[b])], st[int(arr_s[e])], int(dep_t[b]), int(arr_t[e])] for b, e, w in legs]
 for L in itin: L.pop("trip", None)
 json.dump({"rows": rows, "itin": itin, "stats": stats, "order": order_ids, "t0": int(t0), "rides": rides_plan}, open(sys.argv[2], "w"))
 print(json.dumps(stats, indent=1))

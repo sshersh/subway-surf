@@ -33,7 +33,7 @@ class Ends:
         if cur == self.end: return t, 0
         F.gen[0] += 1
         dep_t, arr_t, dep_s, arr_s, trp, nxt, chg, fp_ptr, fp_to, fp_t = F.tt
-        a, m = _leg(cur, t, trip, self.end, dep_t, arr_t, dep_s, arr_s, trp, chg, fp_ptr, fp_to, fp_t,
+        a, m = _leg(cur, t, trip, self.end, dep_t, arr_t, dep_s, arr_s, trp, nxt, chg, fp_ptr, fp_to, fp_t,
                     *F.ws, int(F.gen[0]), self.ob, self.oe, self.ow)
         return a, m
 

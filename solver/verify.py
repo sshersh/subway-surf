@@ -1,6 +1,7 @@
 """Check an exported route against the raw GTFS feed, independently of the solver's model.
 
     python3 verify.py <gtfs_json_dir> <route.json> [--express] [--changes changes.json]
+        [--bus-gtfs <gtfs_json_root>] [--bus-links links.json]
 
 Checks: every train hop (stop -> next stop on a route at an arrival time) exists in the weekday
 schedule; times never go backwards; every required station is reached by a train that stops there
@@ -50,7 +51,7 @@ for tid, v in seq.items():
 rows = json.load(open(ROUTE))["rows"]
 bad_hops, bad_pass, walks = [], [], []
 stopped, passed = set(), set()
-prev_stop = None
+prev_stop = None; bus_legs = []
 for a, b in zip(rows, rows[1:]):
     if ts(b["time"]) < ts(a["time"]): sys.exit(f"time goes backwards at {b}")
 for i, b in enumerate(rows):
@@ -60,6 +61,8 @@ for i, b in enumerate(rows):
         if b["stop_id"] not in between.get((prev_stop["stop_id"], nxt["stop_id"]), set()) or b["stop_id"] in PASS_DENY: bad_pass.append(b)
         passed.add(b["stop_id"]); continue
     a = prev_stop
+    if b.get("bus"):   # a scheduled-bus leg: checked below against the bus feeds; it visits nothing
+        bus_legs.append((a, b)); prev_stop = b; continue
     if not b["route"]:
         sa, sb = stops[a["stop_id"]], stops[b["stop_id"]]
         walks.append(math.hypot((float(sa["stop_lat"]) - float(sb["stop_lat"])) * 111000, (float(sa["stop_lon"]) - float(sb["stop_lon"])) * 84000))
@@ -67,11 +70,49 @@ for i, b in enumerate(rows):
         if (b["route"], a["stop_id"], b["stop_id"], ts(b["time"])) not in hops: bad_hops.append((a, b))
         stopped.update([a["stop_id"], b["stop_id"]])
     prev_stop = b
+bad_bus = []
+if bus_legs:
+    import busdata as BD
+    BROOT = sys.argv[sys.argv.index("--bus-gtfs") + 1] if "--bus-gtfs" in sys.argv else os.path.dirname(os.path.abspath(SRC.rstrip("/")))
+    want = {b["bus_trip"] for _, b in bus_legs}; found = {}
+    for fd in BD.FEEDS:
+        d = f"{BROOT}/{fd}"
+        if not os.path.isdir(d): continue
+        tr_ = {t["trip_id"]: t for t in json.load(open(f"{d}/trips.json")) if t["trip_id"] in want}
+        if not tr_: continue
+        act = BD.active_services(d); ri = BD.routes_info(d)
+        bst = {x["stop_id"]: (float(x["stop_lat"]), float(x["stop_lon"])) for x in json.load(open(f"{d}/stops.json"))}
+        stt = collections.defaultdict(dict)
+        for tid, sq, arr, dep, stop, pu, do in BD.read_stop_times(f"{d}/stop_times.json", set(tr_)): stt[tid][stop] = (sq, arr, dep, pu, do)
+        for tid, t in tr_.items():
+            found[tid] = (t["service_id"] in act, ri[t["route_id"]]["route_short_name"], stt[tid], bst)
+    for a, b in bus_legs:
+        why = []
+        f = found.get(b["bus_trip"])
+        if not f: bad_bus.append((b, "trip not in the bus feeds")); continue
+        ok_day, short, sch, bst = f
+        if not ok_day: why.append("service not active on the weekday")
+        if short != b["bus"]: why.append(f"route {short} != {b['bus']}")
+        sa, sb = sch.get(b["bus_from"]), sch.get(b["bus_to"])
+        if not sa or not sb: why.append("stop not on trip")
+        else:
+            off = 86400 * int(b["bus_day"])
+            if not sa[0] < sb[0]: why.append("stops out of order")
+            if sa[3] == "1" or sb[4] == "1": why.append("no boarding/alighting allowed")
+            if sa[2] + off != ts(b["bus_dep"]) or sb[1] + off != ts(b["bus_arr"]): why.append("times differ from the bus timetable")
+            ll = lambda sid: (float(stops[sid]["stop_lat"]), float(stops[sid]["stop_lon"]))
+            dA, dB = BD.dist_m(ll(b["from_stop"]), bst[b["bus_from"]]), BD.dist_m(ll(b["stop_id"]), bst[b["bus_to"]])
+            if a["stop_id"] != b["from_stop"]: why.append("does not start where the rider is")
+            if dA > BD.REACH + 1 or dB > BD.REACH + 1: why.append("stop too far from the station")
+            if ts(a["time"]) + BD.walk_s(dA) > ts(b["bus_dep"]): why.append("cannot walk to the stop in time (no buffer)")
+            if ts(b["bus_arr"]) + BD.walk_s(dB) > ts(b["time"]): why.append("row time before the walk from the stop ends")
+        if why: bad_bus.append((b, "; ".join(why)))
+    print(f"bus legs {len(bus_legs)} checked against the bus timetable, bad: {len(bad_bus)}" + (f" e.g. {bad_bus[:2]}" if bad_bus else ""))
 got = stopped | (passed if EXPRESS else set())
 print(f"rules: {'express' if EXPRESS else 'local'}")
 print(f"train hops not in the weekday schedule: {len(bad_hops)}" + (f" e.g. {bad_hops[:3]}" if bad_hops else ""))
 if EXPRESS: print(f"pass-throughs not between their hop's stops: {len(bad_pass)}")
 print(f"stations required {len(served)}, covered {len(served & got)}, missing {sorted(served - got)[:10]}")
 print(f"walks {len(walks)}, longest {max(walks):.0f} m" if walks else "walks 0")
-ok = not bad_hops and not (EXPRESS and bad_pass) and served <= got
+ok = not bad_hops and not bad_bus and not (EXPRESS and bad_pass) and served <= got
 print("PASS" if ok else "FAIL"); sys.exit(0 if ok else 1)
