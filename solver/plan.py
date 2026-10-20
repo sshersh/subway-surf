@@ -131,6 +131,13 @@ def _repair(d, order, t0, tries):
     return np.array(order, dtype=np.int64), False
 
 
+def base_id(rules):
+    """Fingerprint of the saved best solution for these rules: a plan made from an older saved best is re-solved."""
+    import hashlib
+    p = os.path.join(ROOT, "results", RULES[rules]["sol"])
+    return hashlib.sha1(open(p, "rb").read()).hexdigest()[:12] if os.path.exists(p) else None
+
+
 def seeds(rules, base_meta, prev_dir):
     """Candidate (label, stop-id order, t0) seeds for these rules."""
     cfg, out = RULES[rules], []
@@ -245,6 +252,11 @@ def main():
                 order = cur.order(o)
                 state, P = changed_from(d, X, cur.F, json.load(open(prev_route)), order, t0, f"{work}/prev_{rules}")
                 print(f"{rules}: last plan on this timetable: {state}" + (f" from order position {P} of {len(order)}" if P is not None else ""), flush=True)
+                prev_sol = os.path.join(a.prev or "", f"solution{sfx}.json")
+                prev_base = json.load(open(prev_sol)).get("base") if os.path.exists(prev_sol) else None
+                if state != "broken" and prev_base != base_id(rules):
+                    print(f"{rules}: the saved best changed since the last plan ({prev_base} -> {base_id(rules)}): re-planning from all seeds", flush=True)
+                    state, P = "diverges", 0
                 if state == "same" and a.resolve:
                     state, P = "diverges", 0
                 if state == "same":
@@ -277,7 +289,9 @@ def main():
             # changes only affect from position P on is annealed with its first P positions kept.
             good = [x for x in scored if x[0] <= scored[0][0] + SEED_SLACK]
             fr = [x for x in good if x[1].startswith("fresh")]
-            starts = [(scored[0], "60")] + [(x, "150") for x in fr if x is not scored[0]] + [(x, "100") for x in good[1:] if x not in fr]
+            sb = [x for x in scored if x[1].startswith("saved best") and x is not scored[0]][:1]   # the saved best always gets a run
+            starts = ([(scored[0], "60")] + [(x, "60") for x in sb] + [(x, "150") for x in fr if x is not scored[0]]
+                      + [(x, "100") for x in good[1:] if x not in fr and x not in sb])
             if len(starts) < a.procs: starts.append((scored[0], "150"))   # the best seed again, hotter
             for k in range(a.procs):
                 (_, lab, o_, t_), hot = starts[k % len(starts)]
@@ -309,8 +323,8 @@ def main():
         r = json.load(open(route)); s = np.load(best[1]).astype(np.int64)
         r["conditions"] = {"hash": ch["hash"], "run_date": ch["run_date"], "changes": len(ch["changes"])}
         json.dump(r, open(route, "w"), separators=(",", ":"))
-        json.dump({"t0": int(s[0]), "order": [cur.st[i] for i in s[1:]], "hash": ch["hash"]}, open(f"{out}/solution{sfx}.json", "w"))
-        info.update({"total_s": r["stats"]["total_s"], "route": os.path.basename(route), "verify": verdict,
+        json.dump({"t0": int(s[0]), "order": [cur.st[i] for i in s[1:]], "hash": ch["hash"], "base": base_id(rules)}, open(f"{out}/solution{sfx}.json", "w"))
+        info.update({"total_s": r["stats"]["total_s"], "route": os.path.basename(route), "verify": verdict, "base": base_id(rules),
                      "transfers": "MTA min_transfer_time" if rules == "local" and a.local_transfers == "mta" else "realistic",
                      "start": r["stats"]["start"], "start_station": r["stats"]["start_station"], "end_station": r["stats"]["end_station"]})
         print(f"{rules}: {info['total_s']/3600:.3f} h (seed {info['seed_s']/3600:.3f} h, {info['seed']}), verify {verdict}", flush=True)
