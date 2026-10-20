@@ -7,7 +7,11 @@ name: Multi-start search, Guinness rules on the 472-station count
 #   - time-aware seeds: tseed.py --times from the saved best route's visit times, alongside fresh gseed tours
 #     and the saved best routes.
 #   - refinement from the top 20 instead of the top 8.
-# Results go to the multistart-results branch under results/multistart472/.
+# Optional (bus_top > 0): scheduled bus links (results/buses/links.json, solver/busrank.py) to the model:
+#   model.py --bus-links ... --bus-top N. A bus leg is a way from station A to B and never counts as visiting a station.
+#   The GTFS package is pinned (gtfs_version) so the bus trip ids in links.json match the feed; verify.py checks
+#   each bus leg against the bus timetable.
+# Dispatch only. Results go to the multistart-results branch under results/<results_dir>/.
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +19,9 @@ on:
       refine_hours: { description: "Stage 2 hours per runner", default: "1.5" }
       minutes: { description: "Minutes per start (stage 1)", default: "25" }
       walk_max: { description: "Straight-line cap (m) for walk/run links between stations", default: "2000" }
+      bus_top: { description: "Number of top-ranked bus links (results/buses/links.json) in the model; 0 = no buses", default: "0" }
+      gtfs_version: { description: "mta-gtfs-static npm version; empty = latest. Use 0.0.202610150311 with bus links (their trip ids come from that feed)", default: "" }
+      results_dir: { description: "Folder under results/ on multistart-results; empty = multistart472 (or multistart472_walkN)", default: "" }
 
 permissions:
   contents: write
@@ -25,7 +32,9 @@ env:
   MINUTES: ${{ inputs.minutes || '25' }}
   MERGE_472: "1"
   WALK_MAX_M: ${{ inputs.walk_max || '2000' }}
-  RESULTS_DIR: ${{ (inputs.walk_max || '2000') == '2000' && 'multistart472' || format('multistart472_walk{0}', inputs.walk_max) }}
+  BUS_TOP: ${{ inputs.bus_top || '0' }}
+  GTFS_VERSION: ${{ inputs.gtfs_version }}
+  RESULTS_DIR: ${{ inputs.results_dir || ((inputs.walk_max || '2000') == '2000' && 'multistart472' || format('multistart472_walk{0}', inputs.walk_max)) }}
 
 jobs:
   build:
@@ -38,12 +47,15 @@ jobs:
       - name: GTFS, dependencies, 472-station model, seeds
         run: |
           pip install -r requirements.txt
-          npm pack mta-gtfs-static --silent
+          npm pack mta-gtfs-static${GTFS_VERSION:+@$GTFS_VERSION} --silent
           mkdir -p gtfs && tar xzf mta-gtfs-static-*.tgz -C gtfs
           python3 -c "import zipfile; zipfile.ZipFile('gtfs/package/gtfs_json.zip').extractall('gtfs')"
           G=$PWD/gtfs/gtfs_json/subway; S=$PWD/solver; R=$PWD
           mkdir -p work/ml work/gtfs && cp -r $G work/gtfs/
-          cd work/ml && python3 $S/model.py $G model --mta-transfers --walk-max $WALK_MAX_M
+          # bus feeds (no shapes) for verify.py's bus-leg check, as a separate artifact only the collect job downloads
+          for d in gtfs/gtfs_json/bus_*; do mkdir -p busgtfs/$(basename $d); for f in trips routes stops calendar calendar_dates stop_times; do cp $d/$f.json busgtfs/$(basename $d)/; done; done
+          BUSARGS=""; if [ "$BUS_TOP" != 0 ]; then BUSARGS="--bus-links $R/results/buses/links.json --bus-top $BUS_TOP"; fi
+          cd work/ml && python3 $S/model.py $G model --mta-transfers --walk-max $WALK_MAX_M $BUSARGS
           # visit times of the saved best route, by station index of this model, for time-aware seeds
           python3 - <<'EOF'
           import json, sys
@@ -65,6 +77,8 @@ jobs:
           ls work/ml; cat work/feed_version.txt
       - uses: actions/upload-artifact@v4
         with: { name: work, path: work, retention-days: 5 }
+      - uses: actions/upload-artifact@v4
+        with: { name: busgtfs, path: busgtfs, retention-days: 5 }
 
   search:
     needs: build
@@ -134,6 +148,8 @@ jobs:
         with: { name: work, path: work }
       - uses: actions/download-artifact@v4
         with: { pattern: "*-*", path: all, merge-multiple: true }
+      - uses: actions/download-artifact@v4
+        with: { name: busgtfs, path: busgtfs }
       - name: Rank, export, verify
         run: |
           pip install -r requirements.txt
@@ -145,7 +161,7 @@ jobs:
           cp $BEST $OUT/best_local.npy
           (cd $D && python3 $R/solver/export.py $OUT/best_local.npy $OUT/best_local.json --robust --soft --weight 0)
           (cd $D && python3 $R/solver/tidy.py $OUT/best_local.json $OUT/best_local.json) || true
-          python3 solver/verify.py $G $OUT/best_local.json | tail -3 | tee -a $OUT/verify_local.txt
+          python3 solver/verify.py $G $OUT/best_local.json --bus-gtfs $R/busgtfs | tail -6 | tee -a $OUT/verify_local.txt
           python3 -c "import json; s=json.load(open('$OUT/best_local.json'))['stats']; t=s['total_s']; print(f'**local plan: {t//3600}:{t%3600//60:02d}**, {s[\"start\"]} {s[\"start_station\"]} -> {s[\"end\"]} {s[\"end_station\"]}, stations {s[\"stations\"]}\n')" >> $OUT/README.md
           mkdir -p $OUT/runs && cp all/*/job*.json $OUT/runs/ 2>/dev/null || true
           cat $OUT/README.md
