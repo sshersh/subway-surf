@@ -15,6 +15,8 @@ on:
       refine_hours: { description: "Stage 2 hours per runner", default: "1.5" }
       minutes: { description: "Minutes per start (stage 1)", default: "25" }
       walk_max: { description: "Straight-line cap (m) for walk/run links between stations", default: "2000" }
+      explore: { description: "true = three arms instead of search+refine: jobs 0-5 night starts (0-3 h), 6-11 faster runner model, 12-19 anneal then ride-level search", default: "false" }
+      ride_minutes: { description: "explore: minutes of ride-level search after each anneal (jobs 12-19)", default: "15" }
 
 permissions:
   contents: write
@@ -25,7 +27,11 @@ env:
   MINUTES: ${{ inputs.minutes || '25' }}
   MERGE_472: "1"
   WALK_MAX_M: ${{ inputs.walk_max || '2000' }}
-  RESULTS_DIR: ${{ (inputs.walk_max || '2000') == '2000' && 'multistart472' || format('multistart472_walk{0}', inputs.walk_max) }}
+  EXPLORE: ${{ inputs.explore || 'false' }}
+  RIDE_MIN: ${{ inputs.ride_minutes || '15' }}
+  # faster runner (explore jobs 6-11): transfers and station walks at 0.6x MTA times, running 3.0 m/s, 60 s per walk overhead
+  FAST_ARGS: "--transfer-scale 0.6 --run-speed 3.0 --walk-overhead 60"
+  RESULTS_DIR: ${{ (inputs.explore == 'true' && 'explore472') || ((inputs.walk_max || '2000') == '2000' && 'multistart472' || format('multistart472_walk{0}', inputs.walk_max)) }}
 
 jobs:
   build:
@@ -43,6 +49,7 @@ jobs:
           python3 -c "import zipfile; zipfile.ZipFile('gtfs/package/gtfs_json.zip').extractall('gtfs')"
           G=$PWD/gtfs/gtfs_json/subway; S=$PWD/solver; R=$PWD
           mkdir -p work/ml work/gtfs && cp -r $G work/gtfs/
+          if [ "$EXPLORE" = true ]; then (mkdir -p work/mf && cd work/mf && python3 $S/model.py $G model --mta-transfers --walk-max $WALK_MAX_M $FAST_ARGS); fi
           cd work/ml && python3 $S/model.py $G model --mta-transfers --walk-max $WALK_MAX_M
           # visit times of the saved best route, by station index of this model, for time-aware seeds
           python3 - <<'EOF'
@@ -84,17 +91,30 @@ jobs:
       - name: Multi-start anneals
         run: |
           pip install -r requirements.txt
-          R=$PWD; J=${{ matrix.job }}; cd work/ml
-          SEEDS="t0.3_gseed.npy t0.5_gseed.npy t0.8_gseed.npy g0.3_gseed.npy g0.5_gseed.npy g0.8_gseed.npy $R/results/best_solution.npy $R/results/best_route.json $R/results/classB/run3_mta_free.json"
+          R=$PWD; J=${{ matrix.job }}; M=$R/work/ml; cd work/ml
+          SEEDS="$M/t0.3_gseed.npy $M/t0.5_gseed.npy $M/t0.8_gseed.npy $M/g0.3_gseed.npy $M/g0.5_gseed.npy $M/g0.8_gseed.npy $R/results/best_solution.npy $R/results/best_route.json $R/results/classB/run3_mta_free.json"
+          if [ "$EXPLORE" != true ]; then
+            python3 $R/solver/multistart.py --rules local --job $J --hours $SEARCH_HOURS --minutes $MINUTES \
+              --procs $(nproc) --out $R/out/search --seeds $SEEDS --kick 0 10
+            exit 0
+          fi
+          # explore: also seed from the earlier 472-station multi-start best (23:56)
+          git fetch -q --depth 1 origin multistart-results
+          for f in best_local.json best_local.npy; do git show FETCH_HEAD:results/multistart472/$f > $R/ms472_$f; done
+          SEEDS="$SEEDS $R/ms472_best_local.json $R/ms472_best_local.npy"
+          if [ $J -lt 6 ]; then ARM=night; ARGS="--windows 0-2.5,0.5-3"
+          elif [ $J -lt 12 ]; then ARM=fast; ARGS=""; cd $R/work/mf
+          else ARM=ride; ARGS="--then-ride $RIDE_MIN"; fi
+          echo "arm $ARM in $PWD"
           python3 $R/solver/multistart.py --rules local --job $J --hours $SEARCH_HOURS --minutes $MINUTES \
-            --procs $(nproc) --out $R/out/search --seeds $SEEDS --kick 0 10
+            --procs $(nproc) --out $R/out/$ARM --seeds $SEEDS --kick 0 10 $ARGS
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: "search-${{ matrix.job }}", path: out, retention-days: 5 }
 
   refine:
     needs: [build, search]
-    if: always() && needs.build.result == 'success'
+    if: always() && needs.build.result == 'success' && inputs.explore != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
@@ -138,6 +158,32 @@ jobs:
         run: |
           pip install -r requirements.txt
           R=$PWD; G=$(ls -d $R/work/gtfs/*); OUT=$R/ms_results; mkdir -p $OUT; D=work/ml
+          if [ "$EXPLORE" = true ]; then
+            echo "# Explore run: night starts, faster runner, ride-level search ($(date -u +%Y-%m-%dT%H:%MZ), feed $(cat work/feed_version.txt), run ${{ github.run_id }})" > $OUT/README.md
+            echo "" >> $OUT/README.md
+            echo "Reference: saved best on main is 23:33. The fast arm uses a faster-runner model ($FAST_ARGS), not MTA transfer times, so it is not verified." >> $OUT/README.md
+            echo "" >> $OUT/README.md
+            for ARM in night fast ride; do
+              D=$R/work/ml; [ $ARM = fast ] && D=$R/work/mf
+              ls all/$ARM/job*.json >/dev/null 2>&1 || continue
+              echo "### Arm: $ARM" >> $OUT/README.md; echo "" >> $OUT/README.md
+              (cd $D && python3 $R/solver/ms_collect.py --in $R/all/$ARM --rules local --md $OUT/README.md) || continue
+              BEST=$(cd $D && python3 -c "import json; print(json.load(open('best_local.json'))['path'])")
+              case $BEST in
+                *.json) cp $BEST $OUT/best_$ARM.json ;;
+                *) cp $BEST $OUT/best_$ARM.npy; (cd $D && python3 $R/solver/export.py $OUT/best_$ARM.npy $OUT/best_$ARM.json --robust --soft --weight 0) ;;
+              esac
+              # tidy replays rides its own way (walks where ride search may ride), so keep it only if it is faster
+              (cd $D && python3 $R/solver/tidy.py $OUT/best_$ARM.json $R/tidy_$ARM.json) && python3 -c "import json,sys; t=lambda f: json.load(open(f))['stats']['total_s']; sys.exit(0 if t('$R/tidy_$ARM.json') < t('$OUT/best_$ARM.json') else 1)" && cp $R/tidy_$ARM.json $OUT/best_$ARM.json || true
+              if [ $ARM != fast ]; then python3 solver/verify.py $G $OUT/best_$ARM.json | tail -6 | tee $OUT/verify_$ARM.txt; fi
+              S=$(python3 -c "import json; s=json.load(open('$OUT/best_$ARM.json'))['stats']; t=s['total_s']; print(f'{t//3600}:{t%3600//60:02d}, {s[\"start\"]} {s[\"start_station\"]} -> {s[\"end\"]} {s[\"end_station\"]}')")
+              echo "**$ARM best: $S**" >> $OUT/README.md; echo "" >> $OUT/README.md
+              echo "::notice title=explore $ARM::best $S"
+            done
+            mkdir -p $OUT/runs && cp all/*/job*.json $OUT/runs/ 2>/dev/null || true
+            cat $OUT/README.md
+            exit 0
+          fi
           echo "# Multi-start search, Guinness rules, 472 stations, walks up to $WALK_MAX_M m ($(date -u +%Y-%m-%dT%H:%MZ), feed $(cat work/feed_version.txt), run ${{ github.run_id }})" > $OUT/README.md
           echo "" >> $OUT/README.md
           (cd $D && python3 $R/solver/ms_collect.py --in $R/all --rules local --md $OUT/README.md)

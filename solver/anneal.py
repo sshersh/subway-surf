@@ -37,7 +37,9 @@ def main(Fast):
             t0 = min(range(T_RANGE[0], T_RANGE[1] + 1, 300), key=lambda t: F.E.cost(order, t)[0])
     else:
         order = raw
-        t0 = min(range(max(3 * 3600, T_RANGE[0]), min(14 * 3600, T_RANGE[1]) + 1, 300), key=lambda t: F.E.cost(order, t)[0])
+        lo, hi = max(3 * 3600, T_RANGE[0]), min(14 * 3600, T_RANGE[1])
+        if lo > hi: lo, hi = T_RANGE   # night windows (multistart --windows 0-2.5)
+        t0 = min(range(lo, hi + 1, 300), key=lambda t: F.E.cost(order, t)[0])
     n = len(order); lo = max(0, min(fix, n - 2))
     cur = F.full(order, t0)
     best, best_o, best_t0 = cur, order.copy(), t0

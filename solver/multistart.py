@@ -43,6 +43,9 @@ rules = opt("--rules", "express"); job = opt("--job", 0, int); hours = opt("--ho
 minutes = opt("--minutes", 25.0, float); out = opt("--out", "ms"); procs = opt("--procs", os.cpu_count() or 2, int)
 seeds = opt("--seeds", [], n="*"); elites = opt("--elites", [], n="*")
 kick = opt("--kick", [0, 25], int, n=2); thi = opt("--thi", 300.0, float); tlo = opt("--tlo", 3.0, float)
+win_opt = opt("--windows", None)          # e.g. "0-2.5,1-3": start-time windows (h) to draw from instead of WINDOWS
+then_ride = opt("--then-ride", 0.0, float)  # minutes of ride-level search (ridesearch.py) after each anneal, local rules
+if win_opt: WINDOWS = [tuple(float(x) for x in w.split("-")) for w in win_opt.split(",")]
 os.makedirs(out, exist_ok=True)
 
 meta = json.load(open("model.json")); sid = {s: i for i, s in enumerate(meta["stations"])}; n = len(sid)
@@ -85,11 +88,24 @@ def one(k):
     t = time.time(); p = subprocess.run(cmd, capture_output=True, text=True)
     st = re.search(r"start ([\d.]+) h", p.stdout); fn = re.search(r"best ([\d.]+) h t0 ([\d.]+)", p.stdout.split("done")[-1])
     os.remove(seed_f)
+    ride = None
+    if then_ride and rules == "local" and os.path.exists(res_f):
+        rj = res_f[:-4] + ".json"; rr = res_f[:-4] + "_ride.json"
+        e = subprocess.run([sys.executable, f"{HERE}/export.py", res_f, rj, "--robust", "--soft", "--weight", "0"], capture_output=True, text=True)
+        if e.returncode == 0:
+            q = subprocess.run([sys.executable, f"{HERE}/ridesearch.py", rj, rr, "--minutes", str(then_ride), "--seed", str(job * 1000 + k)],
+                               capture_output=True, text=True)
+            mm = re.search(r"-> ([\d.]+) h", q.stdout.split("done")[-1]) if q.returncode == 0 else None
+            if mm: ride = (float(mm.group(1)), os.path.basename(rr))
     trace = [(float(a), float(b)) for a, b in re.findall(r"([\d.]+) min it \d+ T\s+[\d.]+ cur [\d.]+ best ([\d.]+)", p.stdout)]
-    return {"job": job, "k": k, "rules": rules, "base": os.path.basename(bname), "kick": K, "window": w,
+    row = {"job": job, "k": k, "rules": rules, "base": os.path.basename(bname), "kick": K, "window": w,
             "start_h": float(st.group(1)) if st else None, "best_h": float(fn.group(1)) if fn else None,
             "t0_h": float(fn.group(2)) if fn else None, "secs": round(time.time() - t), "file": os.path.basename(res_f),
             "trace": trace, "err": p.stderr[-400:] if p.returncode else ""}
+    if ride:   # the ride-level search's result, plan time (h); it is the start's result when better
+        row["anneal_h"] = row["best_h"]; row["ride_h"] = ride[0]
+        if row["best_h"] is None or ride[0] < row["best_h"]: row["best_h"], row["file"] = ride[0], ride[1]
+    return row
 
 
 deadline = time.time() + hours * 3600; rows = []; k = 0

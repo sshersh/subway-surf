@@ -39,6 +39,10 @@ if LEGACY:
     WALK_SPEED, DETOUR, WALK_MAX, WALK_OVERHEAD, DEFAULT_CHANGE = 1.4, 1.3, 1600, 120, 60
 else:
     WALK_SPEED, DETOUR, WALK_MAX, WALK_OVERHEAD, DEFAULT_CHANGE = R.WALK_SPEED, R.DETOUR, R.WALK_MAX, R.WALK_OVERHEAD, R.SAME_DEFAULT
+# sensitivity: a record runner's transfers. --transfer-scale K multiplies every change and station-link time
+# (floor 20 s); --walk-overhead S sets the exit/enter allowance of street walks (default realistic.WALK_OVERHEAD)
+TR_SCALE = float(sys.argv[sys.argv.index("--transfer-scale") + 1]) if "--transfer-scale" in sys.argv else 1.0
+if "--walk-overhead" in sys.argv: R.WALK_OVERHEAD = WALK_OVERHEAD = int(sys.argv[sys.argv.index("--walk-overhead") + 1])
 if "--walk-max" in sys.argv:   # straight-line cap (m) for generated walk/run links
     WALK_MAX = float(sys.argv[sys.argv.index("--walk-max") + 1])
 
@@ -157,6 +161,10 @@ for tr in transfers:
         if not MTA_TR and (a, b) in LINKS: curated.add((sid[a], sid[b]))
 for s, v in same.items():
     chg[s] = max(v)   # a station's slowest same-station transfer applies to every change there
+if TR_SCALE != 1.0:
+    chg = np.maximum(20, (chg * TR_SCALE).astype(np.int64))
+    for i in foot:
+        for j in foot[i]: foot[i][j] = max(20, int(foot[i][j] * TR_SCALE))
 
 lat = np.array([float(s["stop_lat"]) for s in stations]); lon = np.array([float(s["stop_lon"]) for s in stations])
 def dist_m(i, j):
@@ -199,7 +207,7 @@ json.dump({"stations": [s["stop_id"] for s in stations], "names": [s["stop_name"
            "trip_route": route_of_trip, "trip_ids": trip_ids, "T": T, "dropped": dropped,
            "changes": CHANGES.raw.get("hash") if CHANGES else None,
            "params": dict(WALK_SPEED=WALK_SPEED, DETOUR=DETOUR, WALK_MAX=WALK_MAX, WALK_OVERHEAD=WALK_OVERHEAD, DEFAULT_CHANGE=DEFAULT_CHANGE,
-                         LEGACY=LEGACY, MTA_TRANSFERS=MTA_TR, RUN_SPEED=None if LEGACY else R.RUN_SPEED, RUN_FROM=None if LEGACY else R.RUN_FROM)},
+                         LEGACY=LEGACY, MTA_TRANSFERS=MTA_TR, TRANSFER_SCALE=TR_SCALE, WALK_OVERHEAD_S=WALK_OVERHEAD, RUN_SPEED=None if LEGACY else R.RUN_SPEED, RUN_FROM=None if LEGACY else R.RUN_FROM)},
           open(OUT + ".json", "w"))
 print("trips", T, "connections", len(C), "footpaths", len(fp_to), "(generated walks", nwalk, ")")
 
