@@ -1,0 +1,5 @@
+rules: local
+train hops not in the weekday schedule: 0
+stations required 472, covered 472, missing []
+walks 26, longest 2339 m
+PASS
