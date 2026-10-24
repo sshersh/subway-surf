@@ -7,7 +7,7 @@
 :root{
   --bg:#F1F2EF; --surface:#FFFFFF; --ink:#16181B; --muted:#5B6168; --rule:#D8DBD6;
   --sign:#111214; --sign-ink:#F4F4F1; --accent:#0062CF; --accent-ink:#FFFFFF;
-  --station:#FFFFFF; --station-ring:#16181B; --idle:#9AA0A6; --missed:#C8102E; --walk:#4A5057;
+  --station:#FFFFFF; --station-ring:#16181B; --idle:#9AA0A6; --missed:#C8102E; --walk:#4A5057; --skip:#E08A00; --cut:#D0021B;
   --bad:#A8071A; --bad-bg:#FDECEE; --warn:#7A4B00; --warn-bg:#FFF4D6; --ok:#1F6B3A; --ok-bg:#E8F4EC;
   --f-display:"Archivo Narrow","Helvetica Neue",Arial,sans-serif;
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
@@ -16,11 +16,11 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0F1113; --surface:#171A1D; --ink:#ECEEEF; --muted:#9AA1A8; --rule:#2A2F34;
   --sign:#000000; --sign-ink:#F4F4F1; --accent:#4D9BFF; --accent-ink:#06121F;
-  --station:#ECEEEF; --station-ring:#0F1113; --idle:#5F666D; --missed:#FF5C70; --walk:#B7BDC3; --bad:#FF8A95; --bad-bg:#3A1418; --warn:#F5C766; --warn-bg:#352A10; --ok:#7FD39B; --ok-bg:#14291C; color-scheme:dark}}
+  --station:#ECEEEF; --station-ring:#0F1113; --idle:#5F666D; --missed:#FF5C70; --walk:#B7BDC3; --skip:#FFB020; --cut:#FF4D5E; --bad:#FF8A95; --bad-bg:#3A1418; --warn:#F5C766; --warn-bg:#352A10; --ok:#7FD39B; --ok-bg:#14291C; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F1113; --surface:#171A1D; --ink:#ECEEEF; --muted:#9AA1A8; --rule:#2A2F34;
   --sign:#000000; --sign-ink:#F4F4F1; --accent:#4D9BFF; --accent-ink:#06121F;
-  --station:#ECEEEF; --station-ring:#0F1113; --idle:#5F666D; --missed:#FF5C70; --walk:#B7BDC3; --bad:#FF8A95; --bad-bg:#3A1418; --warn:#F5C766; --warn-bg:#352A10; --ok:#7FD39B; --ok-bg:#14291C; color-scheme:dark}
+  --station:#ECEEEF; --station-ring:#0F1113; --idle:#5F666D; --missed:#FF5C70; --walk:#B7BDC3; --skip:#FFB020; --cut:#FF4D5E; --bad:#FF8A95; --bad-bg:#3A1418; --warn:#F5C766; --warn-bg:#352A10; --ok:#7FD39B; --ok-bg:#14291C; color-scheme:dark}
 
 [hidden]{display:none!important}
 html,body{height:100%}
@@ -44,6 +44,9 @@ canvas.drag{cursor:grabbing}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--station);border:2px solid var(--station-ring)}
 .dot.idle{background:transparent;border:1.5px solid var(--idle)}
 .dot.miss{background:transparent;border:2px solid var(--missed)}
+.dot.chg{background:var(--bg);border:1.5px solid var(--muted);box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--skip)}
+.dot.chg.cut{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--cut)}
+.btn.toggle[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
 
 .panel{overflow-y:auto;background:var(--surface);display:flex;flex-direction:column}
 .sec{padding:16px;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -152,6 +155,9 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
       <span><i class="dot"></i>Visited</span>
       <span><i class="dot idle"></i>Not yet</span>
       <span id="lgMiss" hidden><i class="dot miss"></i>Missed by route</span>
+      <span class="lgChg" hidden><i class="dot chg"></i>Stop skipped</span>
+      <span class="lgChg" hidden><i class="dot chg cut"></i>No service</span>
+      <span class="lgChg" hidden title="Rings are solid while the change is in effect at the clock time, faint otherwise">Faint ring: not in effect at this time</span>
     </div>
   </div>
 
@@ -175,15 +181,12 @@ code{font-family:var(--f-mono);font-size:.78rem;background:var(--bg);padding:1px
     <section class="sec" id="playerSec">
       <div class="player">
         <button class="btn primary" id="play">Play</button>
-        <select id="speed" aria-label="Playback speed">
-          <option value="60">1 min / sec</option>
-          <option value="300" selected>5 min / sec</option>
-          <option value="900">15 min / sec</option>
-        </select>
+        <button class="btn toggle" id="fast" aria-pressed="false" title="Play at 30 min / sec instead of 15">2×</button>
         <div class="clock"><span id="clock">--:--</span><small id="leg"></small></div>
       </div>
       <input type="range" id="scrub" min="0" max="1000" value="1000" aria-label="Route time">
       <label class="check"><input type="checkbox" id="miss"> Highlight stations this route never reaches</label>
+      <label class="check" id="chgWrap" hidden><input type="checkbox" id="chg" checked> Highlight stations with service changes</label>
     </section>
 
     <section class="sec">
@@ -287,7 +290,7 @@ cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', e
 /* ---------- theme tokens for canvas ---------- */
 let T = {};
 let LABEL_FONT = '500 11px sans-serif';
-function readTokens(){ const cs = getComputedStyle(document.documentElement); for (const k of ['bg','ink','muted','rule','station','station-ring','idle','missed','walk','accent','surface']) T[k] = cs.getPropertyValue('--'+k).trim(); LABEL_FONT = `500 11px ${cs.getPropertyValue('--f-body')}`; }
+function readTokens(){ const cs = getComputedStyle(document.documentElement); for (const k of ['bg','ink','muted','rule','station','station-ring','idle','missed','walk','accent','surface','skip','cut']) T[k] = cs.getPropertyValue('--'+k).trim(); LABEL_FONT = `500 11px ${cs.getPropertyValue('--f-body')}`; }
 readTokens();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readTokens(); baseKey=''; draw(); });
 new MutationObserver(() => { readTokens(); baseKey=''; draw(); }).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
@@ -448,10 +451,13 @@ $('copySample').onclick = () => { const txt = sampleCSV(); navigator.clipboard.w
 
 /* ---------- playback ---------- */
 let now = 0, playing = false, lastTs = 0;
+const BASE_SPEED = 900;   // 15 min of route time per second; the 2× button doubles it
+let speed = BASE_SPEED;
+$('fast').onclick = () => { const on = speed === BASE_SPEED; speed = on ? 2*BASE_SPEED : BASE_SPEED; $('fast').setAttribute('aria-pressed', on); };
 $('play').onclick = () => { if (!R) return; if (!playing && now >= R.t1) now = R.t0; playing = !playing; lastTs = performance.now(); if (playing) requestAnimationFrame(tick); update(); };
 $('scrub').oninput = e => { if (!R) return; now = R.t0 + (R.t1-R.t0)*e.target.value/1000; update(); };
 $('miss').onchange = () => { $('lgMiss').hidden = !$('miss').checked; draw(); };
-function tick(ts){ if (!playing) return; now += (ts-lastTs)/1000 * +$('speed').value; lastTs = ts; if (now >= R.t1){ now = R.t1; playing = false; } update(); if (playing) requestAnimationFrame(tick); }
+function tick(ts){ if (!playing) return; now += (ts-lastTs)/1000 * speed; lastTs = ts; if (now >= R.t1){ now = R.t1; playing = false; } update(); if (playing) requestAnimationFrame(tick); }
 
 function update(){
   $('play').textContent = playing ? 'Pause' : (R && now>=R.t1 ? 'Replay' : 'Play');
@@ -531,6 +537,16 @@ function render(){
     else if (showMiss && vt===undefined){ ctx.fillStyle=T.bg; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle=T.missed; ctx.stroke(); }
     else { ctx.fillStyle=T.bg; ctx.fill(); ctx.lineWidth=1.6; ctx.strokeStyle=T.muted; ctx.stroke(); }
   }
+  if (R && CHG.size && $('chg').checked){
+    for (const s of D.stations){
+      const cs = chgAt(s.id); if (!cs.length) continue;
+      const x=sx(s.p), y=sy(s.p); if (x<-10||y<-10||x>W+10||y>H+10) continue;
+      const act = cs.filter(c => activeAt(c, now)), cut = (act.length ? act : cs).some(c => c.effect === 'cut');
+      ctx.beginPath(); ctx.arc(x, y, r0+3.5, 0, Math.PI*2);
+      ctx.strokeStyle = cut ? T.cut : T.skip; ctx.lineWidth = act.length ? 2.5 : 1.5; ctx.globalAlpha = act.length ? 1 : 0.3;
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+  }
   if (view.k > 9000){
     ctx.font = LABEL_FONT; ctx.fillStyle = T.ink; ctx.textBaseline='middle';
     for (const s of D.stations){ const x=sx(s.p), y=sy(s.p); if (x<0||y<0||x>W||y>H) continue; ctx.strokeStyle=T.bg; ctx.lineWidth=3; ctx.strokeText(s.n, x+r0+5, y); ctx.fillText(s.n, x+r0+5, y); }
@@ -574,7 +590,7 @@ function showStation(s){
   $('stname').textContent = s.n;
   $('stbul').innerHTML = s.r.map(id => { const r=routeById[id]; const lab = id.replace('X','').replace('GS','S').replace('FS','S').replace('H','S'); return `<span class="bul" title="${r.name}" style="background:${r.c};color:${DARK_TEXT.has(id)?'#111':'#fff'}">${lab}</span>`; }).join('');
   const vt = R && R.first.get(s.id);
-  $('stinfo').textContent = SIR.has(s.id) ? 'Staten Island Railway: not part of the challenge.' : !R ? '' : vt===undefined ? (onCurrent() && DROPPED.has(s.id) ? 'No trains stop here under current service changes, so the plan leaves it out.' : 'This route never reaches this station.') : (() => { const fr = R.firstRow.get(s.id), how = fr && fr.pass ? `Passed through without stopping on the ${fr.route.replace('X','')}` : 'Reached'; return vt<=now ? `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run.` : `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run (not yet).`; })();
+  $('stinfo').textContent = chgText(s.id) + (SIR.has(s.id) ? 'Staten Island Railway: not part of the challenge.' : !R ? '' : vt===undefined ? (onCurrent() && DROPPED.has(s.id) ? 'No trains stop here under current service changes, so the plan leaves it out.' : 'This route never reaches this station.') : (() => { const fr = R.firstRow.get(s.id), how = fr && fr.pass ? `Passed through without stopping on the ${fr.route.replace('X','')}` : 'Reached'; return vt<=now ? `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run.` : `${how} at ${hhmm(vt)}, ${dur(vt-R.t0)} into the run (not yet).`; })());
 }
 
 /* ---------- live service status (status.json is written by the scheduled GitHub Action) ---------- */
@@ -590,6 +606,20 @@ function itemHTML(i){
 }
 /* ---------- the plan for current service (plan.json from solver/plan.py, built into the page) ---------- */
 const PLAN = D.plan || null, DROPPED = new Set(((PLAN && PLAN.dropped) || []).map(d => d.id));
+// stations hit by the service changes the plan was solved around: skipped stops (some lines don't stop) and cuts (no trains)
+const CHG = new Map();
+for (const c of ((PLAN && !PLAN.error && PLAN.changes) || [])) for (const id of c.stops) { if (!CHG.has(id)) CHG.set(id, []); CHG.get(id).push(c); }
+const chgAt = id => [...(CHG.get(id) || []), ...((PARTNER[id] && CHG.get(PARTNER[id])) || [])];
+// route clock (seconds after midnight ET on the run day, past 24 h into the next day) -> epoch seconds
+const RUN_MID = (() => { if (!PLAN || !PLAN.run_date) return null; const [y, m, d] = PLAN.run_date.split('-').map(Number);
+  const off = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York', timeZoneName:'shortOffset'}).formatToParts(new Date(Date.UTC(y, m-1, d, 12))).find(p => p.type === 'timeZoneName').value;
+  const mm = /GMT([+-]\d+)(?::(\d+))?/.exec(off); const offMin = mm ? (+mm[1])*60 + Math.sign(+mm[1])*(+(mm[2]||0)) : -300;
+  return Date.UTC(y, m-1, d)/1000 - offMin*60; })();
+const activeAt = (c, t) => c.when === 'always' || (RUN_MID !== null && c.when.some(([a, b]) => RUN_MID + t >= a && RUN_MID + t < b));
+function chgText(id){
+  const cs = chgAt(id); if (!cs.length) return '';
+  return cs.map(c => `${c.effect === 'cut' ? 'No' : 'Skipped by'} ${(c.lines && c.lines.length ? c.lines.join(', ') : 'all lines')}${c.effect === 'cut' ? ' service' : ''} (${whenText(c).replace(/\.$/, '')})${activeAt(c, now) ? ', in effect at this time' : ''}. `).join('');
+}
 const dayFmt = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m-1, dd).toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}); };
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 function whenText(c){
@@ -650,6 +680,9 @@ async function loadStatus(){
 loadStatus(); setInterval(loadStatus, 5*60*1000);
 
 /* ---------- boot ---------- */
-new ResizeObserver(() => { const had = W; resize(); if (!had){ loadMode(); } }).observe(cv);
+if (CHG.size){ $('chgWrap').hidden = false; document.querySelectorAll('.lgChg').forEach(e => e.hidden = false); }
+$('chg').onchange = () => { document.querySelectorAll('.lgChg').forEach(e => e.hidden = !$('chg').checked); draw(); };
+// on page load, play the route from the start at 15 min / sec
+new ResizeObserver(() => { const had = W; resize(); if (!had){ loadMode(); now = R.t0; playing = true; lastTs = performance.now(); requestAnimationFrame(tick); update(); } }).observe(cv);
 })();
 </script>
