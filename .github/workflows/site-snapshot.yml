@@ -1,0 +1,41 @@
+name: Snapshot live plan data (preview only)
+
+# Branch-only helper: rebuilds what the live site shows (alerts, service changes, the cached plan) and
+# commits it to the site-preview-data branch, so a page change can be previewed against real data.
+# Doesn't deploy anything.
+on:
+  push:
+    branches: [site-fixes]
+    paths: [".github/workflows/site-snapshot.yml"]
+
+permissions:
+  contents: write
+
+env:
+  FEED: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: |
+          curl -fsS --retry 3 --max-time 60 -A "subway-surf-status/1.0" -o alerts.json "$FEED"
+          python3 status/alerts.py --feed alerts.json --out changes.json
+          python3 -c "import json; c=json.load(open('changes.json')); print(f\"hash={c['hash']}\")" >> "$GITHUB_ENV"
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: plan
+          key: plan-v8-${{ env.hash }}-${{ hashFiles('results/best_solution.npy', 'results/best_solution_express.npy') }}
+          restore-keys: |
+            plan-v8-${{ env.hash }}-
+      - run: |
+          mkdir -p snap && cp alerts.json changes.json snap/
+          if [ -d plan ]; then cp -r plan snap/; python3 status/check_status.py --feed alerts.json --route plan/route.json --out snap/status.json || true; fi
+          echo "::notice title=snapshot::cache hit ${{ steps.cache.outputs.cache-hit }}, $(ls snap | tr '\n' ' ')"
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan site-preview-data && git rm -rfq . && git add -f snap && git commit -qm "Live plan snapshot" && git push -f origin site-preview-data
