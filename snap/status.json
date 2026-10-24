@@ -1,0 +1,432 @@
+{
+ "checked_at": 1792878415,
+ "feed_timestamp": 1792876474,
+ "verdict": "blocked",
+ "now": [
+  {
+   "id": "lmm:planned_work:35601",
+   "kind": "blocked",
+   "lines": [
+    "7"
+   ],
+   "text": "In Queens, no [7] at Flushing-Main St",
+   "type": "Planned - Part Suspended",
+   "stations": [
+    "Flushing-Main St"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "38:19",
+    "38:23"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:35318",
+   "kind": "blocked",
+   "lines": [
+    "1"
+   ],
+   "text": "In Upper Manhattan, downtown [1] skips 125 St, 116 St-Columbia University, Cathedral Pkwy (110 St) and 103 St",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "103 St",
+    "Cathedral Pkwy (110 St)",
+    "116 St-Columbia University",
+    "125 St"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "25:29",
+    "25:35"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34819",
+   "kind": "blocked",
+   "lines": [
+    "4"
+   ],
+   "text": "No [4] between 149 St-Hostos and 125 St",
+   "type": "Planned - Part Suspended",
+   "stations": [
+    "138 St-Grand Concourse"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "27:19",
+    "27:21"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34817",
+   "kind": "blocked",
+   "lines": [
+    "1"
+   ],
+   "text": "In the Bronx, no [1] at Van Cortlandt Park-242 St",
+   "type": "Planned - Part Suspended",
+   "stations": [
+    "Van Cortlandt Park-242 St"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "25:56"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34767",
+   "kind": "blocked",
+   "lines": [
+    "C"
+   ],
+   "text": "In Brooklyn, Euclid Av-bound [C] skips Lafayette Av, Clinton-Washington Avs, Franklin Av and Kingston-Throop Avs",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "Kingston-Throop Avs",
+    "Franklin Av",
+    "Lafayette Av",
+    "Clinton-Washington Avs"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "19:15",
+    "31:50"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34761",
+   "kind": "blocked",
+   "lines": [
+    "N"
+   ],
+   "text": "In Brooklyn, no [N] at Coney Island-Stillwell Av",
+   "type": "Planned - Part Suspended",
+   "stations": [
+    "Coney Island-Stillwell Av"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "33:25"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34626",
+   "kind": "blocked",
+   "lines": [
+    "J"
+   ],
+   "text": "No [J] between Myrtle Av and Broad St",
+   "type": "Planned - Part Suspended",
+   "stations": [
+    "Flushing Av",
+    "Lorimer St",
+    "Hewes St",
+    "Marcy Av",
+    "Delancey St-Essex St",
+    "Bowery",
+    "Canal St",
+    "Chambers St",
+    "Fulton St"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "24:23",
+    "24:41"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34601",
+   "kind": "blocked",
+   "lines": [
+    "F"
+   ],
+   "text": "In Brooklyn, Coney Island-bound [F] runs express from Jay St-MetroTech to Kings Hwy All trains at 18 Av and Kings Hwy board from the Manhattan-bound platform",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "Bergen St",
+    "Carroll St",
+    "Smith-9 Sts",
+    "4 Av-9 St",
+    "15 St-Prospect Park",
+    "Fort Hamilton Pkwy",
+    "Ditmas Av",
+    "Avenue I",
+    "Bay Pkwy",
+    "Avenue P"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "34:29",
+    "34:59"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:31498",
+   "kind": "blocked",
+   "lines": [
+    "7"
+   ],
+   "text": "In Queens, Flushing-bound [7] skips 52 St and 69 St All trains at Woodside-61 St board from the Manhattan-bound platform",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "69 St",
+    "52 St"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "38:33",
+    "38:38"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:29949",
+   "kind": "blocked",
+   "lines": [
+    "4"
+   ],
+   "text": "In the Bronx, Woodlawn-bound [4] skips Burnside Av",
+   "type": "Planned - Stops Skipped",
+   "stations": [
+    "Burnside Av"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "27:06",
+    "27:08"
+   ]
+  },
+  {
+   "id": "lmm:planned_work:34778",
+   "kind": "possible",
+   "lines": [
+    "E"
+   ],
+   "text": "Jamaica Center-bound [E] runs via the Roosevelt Island [F] from W 4 St-Wash Sq, Manhattan to 21 St-Queensbridge",
+   "type": "Planned - Reroute",
+   "stations": [
+    "14 St",
+    "W 4 St-Wash Sq",
+    "7 Av",
+    "50 St",
+    "5 Av/53 St",
+    "Lexington Av/53 St",
+    "Court Sq-23 St",
+    "Queens Plaza"
+   ],
+   "more_stations": 0,
+   "plan_times": [
+    "22:21",
+    "37:55"
+   ]
+  },
+  {
+   "id": "lmm:alert:273356:26",
+   "kind": "delay",
+   "lines": [
+    "N",
+    "R"
+   ],
+   "text": "[N][R] trains are running with delays in both directions while we address a signal problem near Lexington Av/59 St.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:alert:273362:26",
+   "kind": "delay",
+   "lines": [
+    "L"
+   ],
+   "text": "[L] trains are running with delays in both directions after we addressed a signal malfunction near E 105 St.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:alert:273367:26",
+   "kind": "delay",
+   "lines": [
+    "Q"
+   ],
+   "text": "Uptown [Q] trains are running with delays after we removed a train with a mechanical problem from service at Beverley Rd.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:alert:273369:26",
+   "kind": "delay",
+   "lines": [
+    "4",
+    "6"
+   ],
+   "text": "Uptown [4][6] trains are running with delays after we addressed a door problem on a train at Bleecker St.",
+   "type": "Delays"
+  },
+  {
+   "id": "lmm:planned_work:34824",
+   "kind": "delay",
+   "lines": [
+    "6"
+   ],
+   "text": "[6] runs every 8 minutes",
+   "type": "Reduced Service"
+  }
+ ],
+ "alerts_in_feed": 207,
+ "next_run": {
+  "start": "2026-10-26T17:25:00-04:00",
+  "issues": [
+   {
+    "id": "lmm:planned_work:35124",
+    "kind": "blocked",
+    "lines": [
+     "1"
+    ],
+    "text": "Downtown [1] skips 125 St",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "125 St"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "25:33",
+     "25:35"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:35119",
+    "kind": "blocked",
+    "lines": [
+     "6"
+    ],
+    "text": "In the Bronx, Manhattan-bound [6] skips Longwood Av, E 149 St, E 143 St, Cypress Av and Brook Av All trains board from the uptown platform at 3 Av-138 St",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "Brook Av",
+     "Cypress Av",
+     "E 143 St-St Mary's St",
+     "E 149 St",
+     "Longwood Av"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "27:31",
+     "27:39"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:35083",
+    "kind": "blocked",
+    "lines": [
+     "F"
+    ],
+    "text": "In Brooklyn, Manhattan-bound [F] skips Avenue P, Avenue N, Bay Pkwy and Avenue I All trains at 18 Av board from the Coney Island-bound platform",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "Avenue I",
+     "Bay Pkwy",
+     "Avenue N",
+     "Avenue P"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "34:53",
+     "34:59"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34784",
+    "kind": "blocked",
+    "lines": [
+     "1",
+     "2"
+    ],
+    "text": "In Manhattan, downtown [1] and [2] local skip Christopher St-Stonewall, Houston St, Canal St and Franklin St",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "Franklin St",
+     "Canal St",
+     "Houston St",
+     "Christopher St-Stonewall"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "25:04",
+     "25:09"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:31498",
+    "kind": "blocked",
+    "lines": [
+     "7"
+    ],
+    "text": "In Queens, Flushing-bound [7] skips 52 St and 69 St All trains at Woodside-61 St board from the Manhattan-bound platform",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "69 St",
+     "52 St"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "38:33",
+     "38:38"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:29949",
+    "kind": "blocked",
+    "lines": [
+     "4"
+    ],
+    "text": "In the Bronx, Woodlawn-bound [4] skips Burnside Av",
+    "type": "Planned - Stops Skipped",
+    "stations": [
+     "Burnside Av"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "27:06",
+     "27:08"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34853",
+    "kind": "possible",
+    "lines": [
+     "F"
+    ],
+    "text": "[F] is rerouted via Court Sq [E] between Roosevelt Av, Queens and Canal St, Manhattan, then via the [A] to to/from Jay St-MetroTech, Brooklyn",
+    "type": "Planned - Reroute",
+    "stations": [
+     "14 St",
+     "23 St",
+     "34 St-Herald Sq",
+     "42 St-Bryant Pk",
+     "47-50 Sts-Rockefeller Ctr",
+     "57 St",
+     "Lexington Av/63 St",
+     "Roosevelt Island",
+     "21 St-Queensbridge"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "22:26",
+     "22:47"
+    ]
+   },
+   {
+    "id": "lmm:planned_work:34850",
+    "kind": "possible",
+    "lines": [
+     "E"
+    ],
+    "text": "[E] is rerouted in Queens and Manhattan",
+    "type": "Planned - Reroute",
+    "stations": [
+     "14 St",
+     "W 4 St-Wash Sq"
+    ],
+    "more_stations": 0,
+    "plan_times": [
+     "22:21"
+    ]
+   }
+  ]
+ }
+}
